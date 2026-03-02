@@ -1,0 +1,397 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>naqt Command Builder</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body {
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      margin: 0; padding: 24px;
+      display: grid; place-items: start center;
+    }
+    .card {
+      width: min(920px, 100%);
+      border: 1px solid rgba(127,127,127,.35);
+      border-radius: 12px;
+      padding: 18px;
+      box-shadow: 0 4px 18px rgba(0,0,0,.08);
+    }
+    h1 { font-size: 18px; margin: 0 0 14px; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(160px, 1fr));
+      gap: 12px;
+    }
+    label { display: block; font-size: 12px; opacity: .85; margin-bottom: 6px; }
+    select {
+      width: 100%;
+      padding: 10px 10px;
+      border-radius: 10px;
+      border: 1px solid rgba(127,127,127,.45);
+      background: transparent;
+      font-size: 14px;
+    }
+    select:disabled { opacity: .55; }
+    .out {
+      margin-top: 14px;
+      padding: 12px;
+      border-radius: 12px;
+      border: 1px dashed rgba(127,127,127,.45);
+      background: rgba(127,127,127,.06);
+      display: grid;
+      gap: 10px;
+    }
+    .cmd {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+      font-size: 14px;
+      padding: 10px;
+      border-radius: 10px;
+      border: 1px solid rgba(127,127,127,.35);
+      background: rgba(0,0,0,.06);
+      overflow-x: auto;
+      white-space: pre;
+    }
+    .row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+    }
+    button {
+      padding: 8px 10px;
+      border-radius: 10px;
+      border: 1px solid rgba(127,127,127,.45);
+      background: transparent;
+      cursor: pointer;
+    }
+    button:active { transform: translateY(1px); }
+    .hint { font-size: 12px; opacity: .8; }
+    @media (max-width: 760px) {
+      .grid { grid-template-columns: 1fr 1fr; }
+    }
+    @media (max-width: 460px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>naqt Command Builder</h1>
+
+    <div class="grid">
+      <div>
+        <label for="host">Host</label>
+        <select id="host"></select>
+      </div>
+      <div>
+        <label for="target">Target</label>
+        <select id="target" disabled></select>
+      </div>
+      <div>
+        <label for="version">Version</label>
+        <select id="version" disabled></select>
+      </div>
+      <div>
+        <label for="arch">Arch</label>
+        <select id="arch" disabled></select>
+      </div>
+    </div>
+
+    <div class="out">
+      <div class="row">
+        <div class="hint">Command:</div>
+        <button id="copy" disabled>Copy</button>
+      </div>
+      <div id="cmd" class="cmd"></div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  // -----------------------------
+  // Data (ported from C#)
+  // -----------------------------
+
+  const Releases = [
+    { Major: 5, Minor: 12, LastPatch: 12 },
+    { Major: 5, Minor: 13, LastPatch: 2  },
+    { Major: 5, Minor: 14, LastPatch: 2  },
+    { Major: 5, Minor: 15, LastPatch: 2  },
+    { Major: 6, Minor: 0,  LastPatch: 4  },
+    { Major: 6, Minor: 1,  LastPatch: 3  },
+    { Major: 6, Minor: 2,  LastPatch: 4  },
+    { Major: 6, Minor: 3,  LastPatch: 2  },
+    { Major: 6, Minor: 4,  LastPatch: 3  },
+    { Major: 6, Minor: 5,  LastPatch: 3  },
+    { Major: 6, Minor: 6,  LastPatch: 3  },
+    { Major: 6, Minor: 7,  LastPatch: 3  },
+    { Major: 6, Minor: 8,  LastPatch: 3  },
+    { Major: 6, Minor: 9,  LastPatch: 3  },
+    { Major: 6, Minor: 10, LastPatch: 2  },
+  ];
+
+  const Hosts = ["windows", "windows_arm64", "linux", "linux_arm64", "mac"];
+  const Targets = ["desktop", "wasm", "android", "ios"];
+
+  // Version helpers (like System.Version)
+  const V = (maj, min, pat) => ({ major: maj, minor: min, patch: pat });
+  const parseV = (s) => {
+    const parts = String(s).split(".").map(x => Number(x));
+    return V(parts[0] || 0, parts[1] || 0, parts[2] || 0);
+  };
+  const cmpV = (a, b) => (a.major - b.major) || (a.minor - b.minor) || (a.patch - b.patch);
+  const lt = (a, b) => cmpV(a, b) < 0;
+  const lte = (a, b) => cmpV(a, b) <= 0;
+  const gt = (a, b) => cmpV(a, b) > 0;
+  const gte = (a, b) => cmpV(a, b) >= 0;
+  const vToString = (v) => `${v.major}.${v.minor}.${v.patch}`;
+
+  // Versions = all patches for each release (0..LastPatch)
+  const Versions = (() => {
+    const out = [];
+    for (const rel of Releases) {
+      for (let p = 0; p <= rel.LastPatch; p++) {
+        out.push(V(rel.Major, rel.Minor, p));
+      }
+    }
+    return out;
+  })();
+
+  // ArchesByPlatform, where each arch has a Name + IsAvailable(version)
+  const ArchesByPlatform = {
+    "windows.desktop": [
+      { Name: "win32_msvc2017",              IsAvailable: (v) => lt(v, V(5,15,0)) },
+      { Name: "win64_mingw73",               IsAvailable: (v) => lt(v, V(5,15,0)) },
+      { Name: "win64_msvc2015_64",           IsAvailable: (v) => lt(v, V(6,0,0))  },
+      { Name: "win64_msvc2017_64",           IsAvailable: (v) => lt(v, V(5,15,0)) },
+      { Name: "win32_mingw73",               IsAvailable: (v) => gte(v, V(5,12,2)) && lt(v, V(5,15,0)) },
+      { Name: "win32_mingw81",               IsAvailable: (v) => gte(v, V(5,15,0)) && lt(v, V(6,0,0))  },
+      { Name: "win32_msvc2019",              IsAvailable: (v) => gte(v, V(5,15,0)) && lt(v, V(6,0,0))  },
+      { Name: "win64_mingw81",               IsAvailable: (v) => gte(v, V(5,15,0)) && lt(v, V(6,2,2))  },
+      { Name: "win64_msvc2019_64",           IsAvailable: (v) => gte(v, V(5,15,0)) && lt(v, V(6,8,0))  },
+      { Name: "win64_msvc2019_arm64",        IsAvailable: (v) => gte(v, V(6,2,0))  && lt(v, V(6,8,0))  },
+      { Name: "win64_mingw",                 IsAvailable: (v) => gte(v, V(6,2,2))  },
+      { Name: "win64_llvm_mingw",            IsAvailable: (v) => gte(v, V(6,7,0))  },
+      { Name: "win64_msvc2022_64",           IsAvailable: (v) => gte(v, V(6,8,0))  },
+      { Name: "win64_msvc2022_arm64_cross_compiled", IsAvailable: (v) => gte(v, V(6,8,0)) },
+    ],
+    "windows_arm64.desktop": [
+      { Name: "win64_msvc2022_arm64", IsAvailable: (v) => gte(v, V(6,8,0)) },
+    ],
+    "linux.desktop": [
+      { Name: "gcc_64",        IsAvailable: (v) => lt(v, V(6,7,0)) },
+      { Name: "linux_gcc_64",  IsAvailable: (v) => gte(v, V(6,7,0)) },
+    ],
+    "linux_arm64.desktop": [
+      { Name: "linux_gcc_64",  IsAvailable: (v) => gte(v, V(6,7,0)) },
+    ],
+    "mac.desktop": [
+      { Name: "clang_64", IsAvailable: (_v) => true },
+    ],
+    "wasm": [
+      { Name: "wasm_32", IsAvailable: (v) =>
+          gte(v, V(5,13,0)) &&
+          lt(v, V(6,5,0)) &&
+          !(gte(v, V(6,0,0)) && lt(v, V(6,2,0)))
+      },
+      { Name: "wasm_singlethread", IsAvailable: (v) => gte(v, V(6,5,0)) },
+      { Name: "wasm_multithread",  IsAvailable: (v) => gte(v, V(6,5,0)) },
+    ],
+    "android": [
+      { Name: "android_arm64_v8a", IsAvailable: (v) => !(gte(v, V(5,14,0)) && lt(v, V(6,0,0))) },
+      { Name: "android_armv7",     IsAvailable: (v) => !(gte(v, V(5,14,0)) && lt(v, V(6,0,0))) },
+      { Name: "android_x86",       IsAvailable: (v) => !(gte(v, V(5,14,0)) && lt(v, V(6,0,0))) },
+      { Name: "android_x86_64",    IsAvailable: (v) => gte(v, V(5,13,0)) && !(gte(v, V(5,14,0)) && lt(v, V(6,0,0))) },
+      { Name: "android",           IsAvailable: (v) => gte(v, V(5,14,0)) && lt(v, V(6,0,0)) },
+    ],
+    "ios": [
+      { Name: "ios", IsAvailable: (_v) => true },
+    ],
+  };
+
+  // -----------------------------
+  // Logic (ported from C#)
+  // -----------------------------
+
+  function getRelevantTargets(host) {
+    const out = [];
+    for (const target of Targets) {
+      if (target === "ios" && host !== "mac") continue;
+      out.push(target);
+    }
+    return out;
+  }
+
+  function getRelevantVersions(host, target) {
+    const out = [];
+    for (const version of Versions) {
+      if (host === "linux_arm64"   && lt(version, V(6,7,0))) continue;
+      if (host === "windows_arm64" && lt(version, V(6,8,0))) continue;
+      if (target === "wasm") {
+        const min = (host === "linux") ? V(5,13,0) : V(5,13,1);
+        if (lt(version, min)) continue;
+        if (gte(version, V(6, 0, 0)) && lt(version, V(6, 2, 0))) continue;
+      }
+      out.push(version);
+    }
+    return out;
+  }
+
+  function getRelevantArches(host, target, version) {
+    const platform = (target === "desktop") ? `${host}.${target}` : target;
+    const arches = ArchesByPlatform[platform] || [];
+    return arches.filter(a => a.IsAvailable(version)).map(a => a.Name);
+  }
+
+  function getInstallCommand(host, target, version, arch) {
+    const isCrossCompile =
+      target !== "desktop" ||
+      arch === "win64_msvc2019_arm64" ||
+      arch.endsWith("_cross_compiled");
+
+    const extraArgs = isCrossCompile ? ["--autodesktop"] : [];
+    let command = `install-qt ${host} ${target} ${vToString(version)} ${arch}`;
+    if (extraArgs.length) command += " " + extraArgs.join(" ");
+    return command;
+  }
+
+  // -----------------------------
+  // UI wiring
+  // -----------------------------
+
+  const els = {
+    host:   document.getElementById("host"),
+    target: document.getElementById("target"),
+    version:document.getElementById("version"),
+    arch:   document.getElementById("arch"),
+    cmd:    document.getElementById("cmd"),
+    copy:   document.getElementById("copy"),
+  };
+
+  function setOptions(select, items, placeholder) {
+    select.innerHTML = "";
+    const ph = document.createElement("option");
+    ph.value = "";
+    ph.textContent = placeholder;
+    ph.disabled = true;
+    ph.selected = true;
+    select.appendChild(ph);
+
+    for (const it of items) {
+      const opt = document.createElement("option");
+      opt.value = it.value ?? it;
+      opt.textContent = it.label ?? it;
+      select.appendChild(opt);
+    }
+  }
+
+  function resetTarget() {
+    setOptions(els.target, [], "Choose target…");
+    els.target.disabled = true;
+  }
+  function resetVersion() {
+    setOptions(els.version, [], "Choose version…");
+    els.version.disabled = true;
+  }
+  function resetArch() {
+    setOptions(els.arch, [], "Choose arch…");
+    els.arch.disabled = true;
+  }
+
+  function updateCommand() {
+    const host = els.host.value;
+    const target = els.target.value;
+    const versionStr = els.version.value;
+    const arch = els.arch.value;
+
+    if (!host || !target || !versionStr || !arch) {
+      els.cmd.innerHTML = "&nbsp;";
+      els.copy.disabled = true;
+      return;
+    }
+
+    const version = parseV(versionStr);
+    const cmd = getInstallCommand(host, target, version, arch);
+    els.cmd.textContent = cmd;
+    els.copy.disabled = false;
+  }
+
+  // Init Host
+  setOptions(els.host, Hosts, "Choose host…");
+
+  els.host.addEventListener("change", () => {
+    const host = els.host.value;
+
+    resetTarget(); resetVersion(); resetArch();
+    updateCommand();
+
+    if (!host) return;
+
+    const targets = getRelevantTargets(host);
+    setOptions(els.target, targets, "Choose target…");
+    els.target.disabled = false;
+  });
+
+  els.target.addEventListener("change", () => {
+    const host = els.host.value;
+    const target = els.target.value;
+
+    resetVersion(); resetArch();
+    updateCommand();
+
+    if (!host || !target) return;
+
+    const versions = getRelevantVersions(host, target)
+      .map(v => ({ value: vToString(v), label: vToString(v) }));
+
+    // Optional: newest first (nice UX)
+    versions.sort((a, b) => cmpV(parseV(b.value), parseV(a.value)));
+
+    setOptions(els.version, versions, "Choose version…");
+    els.version.disabled = false;
+  });
+
+  els.version.addEventListener("change", () => {
+    const host = els.host.value;
+    const target = els.target.value;
+    const versionStr = els.version.value;
+
+    resetArch();
+    updateCommand();
+
+    if (!host || !target || !versionStr) return;
+
+    const version = parseV(versionStr);
+    const arches = getRelevantArches(host, target, version);
+
+    setOptions(els.arch, arches, "Choose arch…");
+    els.arch.disabled = false;
+  });
+
+  els.arch.addEventListener("change", updateCommand);
+
+  els.copy.addEventListener("click", async () => {
+    const text = els.cmd.textContent || "";
+    try {
+      await navigator.clipboard.writeText(text);
+      const old = els.copy.textContent;
+      els.copy.textContent = "Copied!";
+      setTimeout(() => (els.copy.textContent = old), 900);
+    } catch {
+      // Fallback: select text (best-effort)
+      const r = document.createRange();
+      r.selectNodeContents(els.cmd);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(r);
+    }
+  });
+
+  updateCommand();
+})();
+</script>
+</body>
+</html>
