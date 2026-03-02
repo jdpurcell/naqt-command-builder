@@ -21,7 +21,7 @@
     h1 { font-size: 18px; margin: 0 0 14px; }
     .grid {
       display: grid;
-      grid-template-columns: repeat(4, minmax(160px, 1fr));
+      grid-template-columns: minmax(160px, 23fr) minmax(160px, 17fr) minmax(160px, 17fr) minmax(160px, 43fr);
       gap: 12px;
     }
     label { display: block; font-size: 12px; opacity: .85; margin-bottom: 6px; }
@@ -338,15 +338,15 @@
   }
 
   function resetTarget() {
-    setOptions(els.target, [], "Choose target…");
+    setOptions(els.target, [], "Choose…");
     els.target.disabled = true;
   }
   function resetVersion() {
-    setOptions(els.version, [], "Choose version…");
+    setOptions(els.version, [], "Choose…");
     els.version.disabled = true;
   }
   function resetArch() {
-    setOptions(els.arch, [], "Choose arch…");
+    setOptions(els.arch, [], "Choose…");
     els.arch.disabled = true;
   }
 
@@ -375,7 +375,7 @@
 
   resetTarget(); resetVersion(); resetArch();
 
-  setOptions(els.host, Hosts, "Choose host…");
+  setOptions(els.host, Hosts, "Choose…");
 
   els.host.addEventListener("change", () => {
     const host = els.host.value;
@@ -386,7 +386,7 @@
     if (!host) return;
 
     const targets = getRelevantTargets(host);
-    setOptions(els.target, targets, "Choose target…");
+    setOptions(els.target, targets, "Choose…");
     els.target.disabled = false;
   });
 
@@ -405,7 +405,7 @@
     // Optional: newest first (nice UX)
     versions.sort((a, b) => cmpV(parseV(b.value), parseV(a.value)));
 
-    setOptions(els.version, versions, "Choose version…");
+    setOptions(els.version, versions, "Choose…");
     els.version.disabled = false;
   });
 
@@ -422,7 +422,7 @@
     const version = parseV(versionStr);
     const arches = getRelevantArches(host, target, version);
 
-    setOptions(els.arch, arches, "Choose arch…");
+    setOptions(els.arch, arches, "Choose…");
     els.arch.disabled = false;
   });
 
