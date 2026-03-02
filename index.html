@@ -53,6 +53,9 @@
       overflow-x: auto;
       white-space: pre;
     }
+    .yaml-k { color: #7ee787; }
+    .yaml-c { color: #f0f6fc; }
+    .yaml-v { color: #a5d6ff; }
     .row {
       display: flex;
       gap: 10px;
@@ -102,10 +105,18 @@
 
     <div class="out">
       <div class="row">
-        <div class="hint">Command:</div>
+        <div class="hint">Command for <a href="https://github.com/jdpurcell/naqt">naqt</a>:</div>
         <button id="copy" disabled>Copy</button>
       </div>
       <div id="cmd" class="cmd"></div>
+    </div>
+
+    <div class="out">
+      <div class="row">
+        <div class="hint">Script for <a href="https://github.com/jdpurcell/install-qt-action">install-qt-action</a>:</div>
+        <button id="copyAction" disabled>Copy</button>
+      </div>
+      <div id="actionYaml" class="cmd"></div>
     </div>
   </div>
 
@@ -258,6 +269,42 @@
     return command;
   }
 
+  function getInstallQtActionYaml(host, target, version, arch) {
+    return [
+      "- name: Install Qt",
+      "  uses: jdpurcell/install-qt-action@v5",
+      "  with:",
+      `    version: '${vToString(version)}'`,
+      `    host: '${host}'`,
+      `    target: '${target}'`,
+      `    arch: '${arch}'`,
+      "    cache: true",
+      "    use-naqt: true",
+      "    setup-python: false",
+    ].join("\n");
+  }
+
+  function escapeHtml(s) {
+    return String(s)
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#39;");
+  }
+
+  function renderYamlHighlighted(yaml) {
+    return yaml
+      .split("\n")
+      .map((line) => {
+        const m = line.match(/^(\s*[^:]+)(:)(.*)$/);
+        if (!m) return escapeHtml(line);
+        const [, key, colon, value] = m;
+        return `<span class="yaml-k">${escapeHtml(key)}</span><span class="yaml-c">${colon}</span><span class="yaml-v">${escapeHtml(value)}</span>`;
+      })
+      .join("\n");
+  }
+
   // -----------------------------
   // UI wiring
   // -----------------------------
@@ -269,6 +316,8 @@
     arch:   document.getElementById("arch"),
     cmd:    document.getElementById("cmd"),
     copy:   document.getElementById("copy"),
+    actionYaml: document.getElementById("actionYaml"),
+    copyAction: document.getElementById("copyAction"),
   };
 
   function setOptions(select, items, placeholder) {
@@ -310,16 +359,22 @@
     if (!host || !target || !versionStr || !arch) {
       els.cmd.innerHTML = "&nbsp;";
       els.copy.disabled = true;
+      els.actionYaml.innerHTML = "&nbsp;";
+      els.copyAction.disabled = true;
       return;
     }
 
     const version = parseV(versionStr);
     const cmd = getInstallCommand(host, target, version, arch);
+    const actionYaml = getInstallQtActionYaml(host, target, version, arch);
     els.cmd.textContent = cmd;
     els.copy.disabled = false;
+    els.actionYaml.innerHTML = renderYamlHighlighted(actionYaml);
+    els.copyAction.disabled = false;
   }
 
-  // Init Host
+  resetTarget(); resetVersion(); resetArch();
+
   setOptions(els.host, Hosts, "Choose host…");
 
   els.host.addEventListener("change", () => {
@@ -384,6 +439,22 @@
       // Fallback: select text (best-effort)
       const r = document.createRange();
       r.selectNodeContents(els.cmd);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(r);
+    }
+  });
+
+  els.copyAction.addEventListener("click", async () => {
+    const text = (els.actionYaml.textContent || "").trimEnd();
+    try {
+      await navigator.clipboard.writeText(text);
+      const old = els.copyAction.textContent;
+      els.copyAction.textContent = "Copied!";
+      setTimeout(() => (els.copyAction.textContent = old), 900);
+    } catch {
+      const r = document.createRange();
+      r.selectNodeContents(els.actionYaml);
       const sel = window.getSelection();
       sel.removeAllRanges();
       sel.addRange(r);
