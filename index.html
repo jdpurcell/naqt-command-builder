@@ -27,8 +27,8 @@
     label { display: block; font-size: 12px; opacity: .85; margin-bottom: 6px; }
     select {
       width: 100%;
-      padding: 10px 10px;
-      border-radius: 10px;
+      padding: 6px 6px;
+      border-radius: 8px;
       border: 1px solid rgba(127,127,127,.45);
       background: transparent;
       font-size: 14px;
@@ -72,8 +72,55 @@
     }
     button:active { transform: translateY(1px); }
     .hint { font-size: 14px; opacity: .85; }
+    .addons-grid {
+      margin-top: 14px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      align-items: start;
+    }
+    .addons-box {
+      display: grid;
+      gap: 6px;
+      align-content: start;
+    }
+    .addons-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      opacity: .95;
+      margin: 0;
+    }
+    .addons-list {
+      max-height: 192px;
+      overflow-y: auto;
+      padding: 10px;
+      border-radius: 10px;
+      border: 1px solid rgba(127,127,127,.35);
+      background: rgba(0,0,0,.06);
+      display: grid;
+      gap: 6px;
+      align-content: start;
+      align-self: start;
+    }
+    .addons-list[hidden] { display: none; }
+    .addons-item {
+      display: inline-flex;
+      gap: 8px;
+      align-items: center;
+      font-size: 14px;
+      opacity: .95;
+    }
+    .addons-list .addons-item { margin-bottom: 0; }
+    .addons-status {
+      font-size: 13px;
+      opacity: .85;
+      padding: 2px 0;
+    }
     @media (max-width: 760px) {
       .grid { grid-template-columns: 1fr 1fr; }
+      .addons-grid { grid-template-columns: 1fr; }
     }
     @media (max-width: 460px) {
       .grid { grid-template-columns: 1fr; }
@@ -103,6 +150,25 @@
       </div>
     </div>
 
+    <div class="addons-grid">
+      <div class="addons-box">
+        <label class="addons-toggle" for="installModules">
+          <input type="checkbox" id="installModules" disabled />
+          <span>Install modules</span>
+        </label>
+        <div id="modulesStatus" class="addons-status" hidden></div>
+        <div id="modulesList" class="addons-list" hidden></div>
+      </div>
+      <div class="addons-box">
+        <label class="addons-toggle" for="installExtensions">
+          <input type="checkbox" id="installExtensions" disabled />
+          <span>Install extensions</span>
+        </label>
+        <div id="extensionsStatus" class="addons-status" hidden></div>
+        <div id="extensionsList" class="addons-list" hidden></div>
+      </div>
+    </div>
+
     <div class="out">
       <div class="row">
         <div class="hint">Command for <a href="https://github.com/jdpurcell/naqt">naqt</a>:</div>
@@ -117,6 +183,17 @@
         <button id="copyAction" disabled>Copy</button>
       </div>
       <div id="actionYaml" class="cmd"></div>
+    </div>
+
+    <div class="out">
+      <div class="row">
+        <div class="hint">Link to official mirror:</div>
+        <div style="display: flex; gap: 10px;">
+          <button id="copyMirror" disabled>Copy</button>
+          <button id="openMirror" disabled>Open</button>
+        </div>
+      </div>
+      <div id="mirrorUrl" class="cmd"></div>
     </div>
   </div>
 
@@ -171,55 +248,100 @@
     return out;
   })();
 
-  // ArchesByPlatform, where each arch has a Name + IsAvailable(version)
+  const QtArch = (Name, IsAvailable) => ({ Name, IsAvailable });
   const ArchesByPlatform = {
     "windows.desktop": [
-      { Name: "win32_msvc2017",              IsAvailable: (v) => lt(v, V(5,15,0)) },
-      { Name: "win64_mingw73",               IsAvailable: (v) => lt(v, V(5,15,0)) },
-      { Name: "win64_msvc2015_64",           IsAvailable: (v) => lt(v, V(6,0,0))  },
-      { Name: "win64_msvc2017_64",           IsAvailable: (v) => lt(v, V(5,15,0)) },
-      { Name: "win32_mingw73",               IsAvailable: (v) => gte(v, V(5,12,2)) && lt(v, V(5,15,0)) },
-      { Name: "win32_mingw81",               IsAvailable: (v) => gte(v, V(5,15,0)) && lt(v, V(6,0,0))  },
-      { Name: "win32_msvc2019",              IsAvailable: (v) => gte(v, V(5,15,0)) && lt(v, V(6,0,0))  },
-      { Name: "win64_mingw81",               IsAvailable: (v) => gte(v, V(5,15,0)) && lt(v, V(6,2,2))  },
-      { Name: "win64_msvc2019_64",           IsAvailable: (v) => gte(v, V(5,15,0)) && lt(v, V(6,8,0))  },
-      { Name: "win64_msvc2019_arm64",        IsAvailable: (v) => gte(v, V(6,2,0))  && lt(v, V(6,8,0))  },
-      { Name: "win64_mingw",                 IsAvailable: (v) => gte(v, V(6,2,2))  },
-      { Name: "win64_llvm_mingw",            IsAvailable: (v) => gte(v, V(6,7,0))  },
-      { Name: "win64_msvc2022_64",           IsAvailable: (v) => gte(v, V(6,8,0))  },
-      { Name: "win64_msvc2022_arm64_cross_compiled", IsAvailable: (v) => gte(v, V(6,8,0)) },
+      QtArch("win32_msvc2017", v => lt(v, V(5,15,0))),
+      QtArch("win64_mingw73", v => lt(v, V(5,15,0))),
+      QtArch("win64_msvc2015_64", v => lt(v, V(6,0,0))),
+      QtArch("win64_msvc2017_64", v => lt(v, V(5,15,0))),
+      QtArch("win32_mingw73", v => gte(v, V(5,12,2)) && lt(v, V(5,15,0))),
+      QtArch("win32_mingw81", v => gte(v, V(5,15,0)) && lt(v, V(6,0,0))),
+      QtArch("win32_msvc2019", v => gte(v, V(5,15,0)) && lt(v, V(6,0,0))),
+      QtArch("win64_mingw81", v => gte(v, V(5,15,0)) && lt(v, V(6,2,2))),
+      QtArch("win64_msvc2019_64", v => gte(v, V(5,15,0)) && lt(v, V(6,8,0))),
+      QtArch("win64_msvc2019_arm64", v => gte(v, V(6,2,0))  && lt(v, V(6,8,0))),
+      QtArch("win64_mingw", v => gte(v, V(6,2,2))),
+      QtArch("win64_llvm_mingw", v => gte(v, V(6,7,0))),
+      QtArch("win64_msvc2022_64", v => gte(v, V(6,8,0))),
+      QtArch("win64_msvc2022_arm64_cross_compiled", v => gte(v, V(6,8,0))),
     ],
     "windows_arm64.desktop": [
-      { Name: "win64_msvc2022_arm64", IsAvailable: (v) => gte(v, V(6,8,0)) },
+      QtArch("win64_msvc2022_arm64", v => gte(v, V(6,8,0))),
     ],
     "linux.desktop": [
-      { Name: "gcc_64",        IsAvailable: (v) => lt(v, V(6,7,0)) },
-      { Name: "linux_gcc_64",  IsAvailable: (v) => gte(v, V(6,7,0)) },
+      QtArch("gcc_64", v => lt(v, V(6,7,0))),
+      QtArch("linux_gcc_64", v => gte(v, V(6,7,0))),
     ],
     "linux_arm64.desktop": [
-      { Name: "linux_gcc_64",  IsAvailable: (v) => gte(v, V(6,7,0)) },
+      QtArch("linux_gcc_arm64", v => gte(v, V(6,7,0))),
     ],
     "mac.desktop": [
-      { Name: "clang_64", IsAvailable: (_v) => true },
+      QtArch("clang_64", _v => true),
     ],
     "wasm": [
-      { Name: "wasm_32", IsAvailable: (v) =>
-          gte(v, V(5,13,0)) &&
-          lt(v, V(6,5,0)) &&
-          !(gte(v, V(6,0,0)) && lt(v, V(6,2,0)))
-      },
-      { Name: "wasm_singlethread", IsAvailable: (v) => gte(v, V(6,5,0)) },
-      { Name: "wasm_multithread",  IsAvailable: (v) => gte(v, V(6,5,0)) },
+      QtArch("wasm_32", v => gte(v, V(5,13,0)) && lt(v, V(6,5,0)) && !(gte(v, V(6,0,0)) && lt(v, V(6,2,0)))),
+      QtArch("wasm_singlethread", v => gte(v, V(6,5,0))),
+      QtArch("wasm_multithread", v => gte(v, V(6,5,0))),
     ],
     "android": [
-      { Name: "android_arm64_v8a", IsAvailable: (v) => !(gte(v, V(5,14,0)) && lt(v, V(6,0,0))) },
-      { Name: "android_armv7",     IsAvailable: (v) => !(gte(v, V(5,14,0)) && lt(v, V(6,0,0))) },
-      { Name: "android_x86",       IsAvailable: (v) => !(gte(v, V(5,14,0)) && lt(v, V(6,0,0))) },
-      { Name: "android_x86_64",    IsAvailable: (v) => gte(v, V(5,13,0)) && !(gte(v, V(5,14,0)) && lt(v, V(6,0,0))) },
-      { Name: "android",           IsAvailable: (v) => gte(v, V(5,14,0)) && lt(v, V(6,0,0)) },
+      QtArch("android_arm64_v8a", v => !(gte(v, V(5,14,0)) && lt(v, V(6,0,0)))),
+      QtArch("android_armv7", v => !(gte(v, V(5,14,0)) && lt(v, V(6,0,0)))),
+      QtArch("android_x86", v => !(gte(v, V(5,14,0)) && lt(v, V(6,0,0)))),
+      QtArch("android_x86_64", v => gte(v, V(5,13,0)) && !(gte(v, V(5,14,0)) && lt(v, V(6,0,0)))),
+      QtArch("android", v => gte(v, V(5,14,0)) && lt(v, V(6,0,0))),
     ],
     "ios": [
-      { Name: "ios", IsAvailable: (_v) => true },
+      QtArch("ios", _v => true),
+    ],
+  };
+
+  const QtExtension = (Name, IsAvailable) => ({ Name, IsAvailable });
+  const ExtensionsByPlatformAndArch = {
+    "windows.desktop.win64_msvc2022_64": [
+      QtExtension("qtpdf", v => gte(v, V(6, 8, 0))),
+      QtExtension("qtwebengine", v => gte(v, V(6, 8, 0))),
+    ],
+    "windows.desktop.win64_msvc2022_arm64_cross_compiled": [
+      QtExtension("qtpdf", v => gte(v, V(6, 9, 2))),
+      QtExtension("qtwebengine", v => gte(v, V(6, 9, 2))),
+    ],
+    "windows.desktop.win64_mingw": [
+      QtExtension("qtpdf", v => gte(v, V(6, 8, 0))),
+    ],
+    "windows.desktop.win64_llvm_mingw": [
+      QtExtension("qtpdf", v => gte(v, V(6, 8, 0))),
+    ],
+    "windows_arm64.desktop.win64_msvc2022_arm64": [
+      QtExtension("qtpdf", v => gte(v, V(6, 9, 2))),
+      QtExtension("qtwebengine", v => gte(v, V(6, 10, 0))),
+    ],
+    "mac.desktop.clang_64": [
+      QtExtension("qtpdf", v => gte(v, V(6, 8, 0))),
+      QtExtension("qtwebengine", v => gte(v, V(6, 8, 0))),
+    ],
+    "linux.desktop.linux_gcc_64": [
+      QtExtension("qtpdf", v => gte(v, V(6, 8, 0))),
+      QtExtension("qtwebengine", v => gte(v, V(6, 8, 0))),
+    ],
+    "linux_arm64.desktop.linux_gcc_arm64": [
+      QtExtension("qtpdf", v => gte(v, V(6, 8, 0))),
+      QtExtension("qtwebengine", v => gte(v, V(6, 8, 0))),
+    ],
+    "android.android_arm64_v8a": [
+      QtExtension("qtpdf", v => gte(v, V(6, 8, 0))),
+    ],
+    "android.android_armv7": [
+      QtExtension("qtpdf", v => gte(v, V(6, 8, 0))),
+    ],
+    "android.android_x86": [
+      QtExtension("qtpdf", v => gte(v, V(6, 8, 0))),
+    ],
+    "android.android_x86_64": [
+      QtExtension("qtpdf", v => gte(v, V(6, 8, 0))),
+    ],
+    "ios.ios": [
+      QtExtension("qtpdf", v => gte(v, V(6, 8, 0))),
     ],
   };
 
@@ -257,32 +379,94 @@
     return arches.filter(a => a.IsAvailable(version)).map(a => a.Name);
   }
 
-  function getInstallCommand(host, target, version, arch) {
+  function getRelevantExtensions(host, target, version, arch) {
+    const platform = (target === "desktop") ? `${host}.${target}` : target;
+    const extensions = ExtensionsByPlatformAndArch[`${platform}.${arch}`] || [];
+    return extensions.filter(e => e.IsAvailable(version)).map(e => e.Name);
+  }
+
+  function usesAllOsHost(target, version) {
+    if (target === "wasm" && gte(version, V(6, 7, 0))) return true;
+    if (target === "android" && gte(version, V(6, 7, 0))) return true;
+    return false;
+  }
+
+  function getInstallCommand(host, target, version, arch, modules = [], extensions = []) {
+    const targetHost = usesAllOsHost(target, version) ? "all_os" : host;
     const isCrossCompile =
       target !== "desktop" ||
       arch === "win64_msvc2019_arm64" ||
       arch.endsWith("_cross_compiled");
-
-    const extraArgs = isCrossCompile ? ["--autodesktop"] : [];
-    let command = `install-qt ${host} ${target} ${vToString(version)} ${arch}`;
+    const extraArgs = [];
+    if (modules.length > 0) extraArgs.push("--modules", ...modules);
+    if (extensions.length > 0) extraArgs.push("--extensions", ...extensions);
+    if (isCrossCompile) extraArgs.push("--autodesktop");
+    let command = `install-qt ${targetHost} ${target} ${vToString(version)} ${arch}`;
     if (extraArgs.length) command += " " + extraArgs.join(" ");
     return command;
   }
 
-  function getInstallQtActionYaml(host, target, version, arch) {
-    return [
+  function getInstallQtActionYaml(host, target, version, arch, modules = [], extensions = []) {
+    const targetHost = usesAllOsHost(target, version) ? "all_os" : host;
+    const lines = [
       "- name: Install Qt",
       "  uses: jdpurcell/install-qt-action@v5",
       "  with:",
       `    version: '${vToString(version)}'`,
-      `    host: '${host}'`,
+      `    host: '${targetHost}'`,
       `    target: '${target}'`,
       `    arch: '${arch}'`,
+    ];
+    if (modules.length > 0) {
+      lines.push(`    modules: '${modules.join(" ")}'`);
+    }
+    if (extensions.length > 0) {
+      lines.push(`    extensions: '${extensions.join(" ")}'`);
+    }
+    lines.push(
       "    cache: true",
       "    use-naqt: true",
       "    setup-python: false",
-    ].join("\n");
+    );
+    return lines.join("\n");
   }
+
+  function getUpdateDirectoryUrl(host, target, version, arch) {
+    const actualHost = usesAllOsHost(target, version) ? "all_os" :
+      host === "windows" ? `${host}_x86` :
+      host === "linux" || host === "mac" ? `${host}_x64` :
+      host;
+    const actualTarget = target === "wasm" && lt(version, V(6, 7, 0)) ? "desktop" : target;
+    const variant =
+      host === "windows" && target === "desktop" && gte(version, V(6, 11, 0)) && arch.startsWith("win64_") ? arch.substring("win64_".length) :
+      target === "android" && gte(version, V(6, 0, 0)) && arch.startsWith("android_") ? arch.substring("android_".length) :
+      target === "wasm" ? (gte(version, V(6, 5, 0)) ? arch : "wasm") :
+      "";
+    const dirForVersion = `qt${version.major}_${version.major}${version.minor}${version.patch}`;
+    const dirForVersionAndVariant = variant.length !== 0 ? `${dirForVersion}_${variant}` : dirForVersion;
+    const actualDir = gte(version, V(6, 8, 0)) ? `${dirForVersion}/${dirForVersionAndVariant}` : dirForVersionAndVariant;
+    return `https://download.qt.io/online/qtsdkrepository/${actualHost}/${actualTarget}/${actualDir}/`;
+  }
+
+  function parseModulesFromUpdate(updateDoc, arch) {
+    const modules = [];
+    for (const pkg of updateDoc.getElementsByTagName("PackageUpdate")) {
+      const nameEl = Array.from(pkg.children).find((el) => el.tagName === "Name");
+      const packageName = nameEl?.textContent?.trim();
+      if (!packageName) continue;
+      const nameSegments = packageName.split(".");
+      if (nameSegments.length < 5) continue;
+      if (nameSegments[nameSegments.length - 1] !== arch) continue;
+      const hasGroupName = nameSegments.length >= 6 && nameSegments[3] === "addons";
+      const startSegment = hasGroupName ? 4 : 3;
+      modules.push(nameSegments.slice(startSegment, -1).join("."));
+    }
+    return modules;
+  }
+
+  // -----------------------------
+  // Formatting helpers
+  // -----------------------------
 
   function escapeHtml(s) {
     return String(s)
@@ -318,7 +502,24 @@
     copy:   document.getElementById("copy"),
     actionYaml: document.getElementById("actionYaml"),
     copyAction: document.getElementById("copyAction"),
+    mirrorUrl: document.getElementById("mirrorUrl"),
+    copyMirror: document.getElementById("copyMirror"),
+    openMirror: document.getElementById("openMirror"),
+    installModules: document.getElementById("installModules"),
+    modulesStatus: document.getElementById("modulesStatus"),
+    modulesList: document.getElementById("modulesList"),
+    installExtensions: document.getElementById("installExtensions"),
+    extensionsStatus: document.getElementById("extensionsStatus"),
+    extensionsList: document.getElementById("extensionsList"),
   };
+
+  const updateDocCache = {
+    url: "",
+    document: null,
+    promise: null,
+    abortController: null,
+  };
+  let modulesLoadRequestId = 0;
 
   function setOptions(select, items, placeholder) {
     select.innerHTML = "";
@@ -350,7 +551,196 @@
     els.arch.disabled = true;
   }
 
-  function updateCommand() {
+  function hasFullSelection() {
+    return Boolean(els.host.value && els.target.value && els.version.value && els.arch.value);
+  }
+
+  function getSelectedModules() {
+    return getSelectedAddonValues(els.installModules, els.modulesList);
+  }
+
+  function getSelectedExtensions() {
+    return getSelectedAddonValues(els.installExtensions, els.extensionsList);
+  }
+
+  function getSelectedAddonValues(installCheckbox, listEl) {
+    if (!installCheckbox.checked) return [];
+    return Array.from(listEl.querySelectorAll('input[type="checkbox"]:checked')).map((input) => input.value);
+  }
+
+  function resetModulesUi(forceDisable = false) {
+    resetAddonUi({
+      installCheckbox: els.installModules,
+      listEl: els.modulesList,
+      statusEl: els.modulesStatus,
+      forceDisable,
+      onReset: () => {
+        modulesLoadRequestId += 1;
+        if (updateDocCache.abortController) {
+          updateDocCache.abortController.abort();
+        }
+      },
+    });
+  }
+
+  function resetExtensionsUi(forceDisable = false) {
+    resetAddonUi({
+      installCheckbox: els.installExtensions,
+      listEl: els.extensionsList,
+      statusEl: els.extensionsStatus,
+      forceDisable,
+    });
+  }
+
+  function resetAddonUi({ installCheckbox, listEl, statusEl, forceDisable = false, onReset = null }) {
+    if (onReset) onReset();
+    if (forceDisable) {
+      installCheckbox.checked = false;
+      installCheckbox.disabled = true;
+    }
+    listEl.hidden = true;
+    listEl.innerHTML = "";
+    statusEl.hidden = true;
+    statusEl.textContent = "";
+  }
+
+  function setModulesStatus(text) {
+    setAddonStatus(els.modulesStatus, text);
+  }
+
+  function setExtensionsStatus(text) {
+    setAddonStatus(els.extensionsStatus, text);
+  }
+
+  function setAddonStatus(statusEl, text) {
+    statusEl.textContent = text;
+    statusEl.hidden = !text;
+  }
+
+  function renderModulesList(modules) {
+    renderAddonList(els.modulesList, "addons-item", modules);
+  }
+
+  function renderExtensionsList(extensions) {
+    renderAddonList(els.extensionsList, "addons-item", extensions);
+  }
+
+  function renderAddonList(listEl, itemClass, values) {
+    listEl.innerHTML = "";
+    for (const value of values) {
+      const label = document.createElement("label");
+      label.className = itemClass;
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.value = value;
+      label.append(cb, document.createTextNode(value));
+      listEl.appendChild(label);
+    }
+    listEl.hidden = values.length === 0;
+  }
+
+  async function getCachedUpdateDoc(updatesXmlUrl) {
+    if (updateDocCache.url === updatesXmlUrl && updateDocCache.document) {
+      return updateDocCache.document;
+    }
+    if (updateDocCache.url === updatesXmlUrl && updateDocCache.promise) {
+      return updateDocCache.promise;
+    }
+
+    if (updateDocCache.abortController) {
+      updateDocCache.abortController.abort();
+    }
+
+    const abortController = new AbortController();
+    const promise = (async () => {
+      const response = await fetch(updatesXmlUrl, { signal: abortController.signal });
+      if (!response.ok) {
+        throw new Error(`Failed to fetch Updates.xml (${response.status})`);
+      }
+      const xmlText = await response.text();
+      const xmlDoc = new DOMParser().parseFromString(xmlText, "application/xml");
+      updateDocCache.document = xmlDoc;
+      return xmlDoc;
+    })();
+
+    updateDocCache.url = updatesXmlUrl;
+    updateDocCache.document = null;
+    updateDocCache.promise = promise;
+    updateDocCache.abortController = abortController;
+
+    try {
+      return await promise;
+    } finally {
+      if (updateDocCache.promise === promise) {
+        updateDocCache.promise = null;
+        updateDocCache.abortController = null;
+      }
+    }
+  }
+
+  async function loadModulesForSelection() {
+    if (!hasFullSelection() || !els.installModules.checked) {
+      resetModulesUi(false);
+      return;
+    }
+
+    const host = els.host.value;
+    const target = els.target.value;
+    const version = parseV(els.version.value);
+    const arch = els.arch.value;
+    const baseUrl = getUpdateDirectoryUrl(host, target, version, arch);
+    const updatesXmlUrl = `${baseUrl}Updates.xml`;
+    const requestId = ++modulesLoadRequestId;
+
+    els.modulesList.hidden = true;
+    setModulesStatus("Loading modules…");
+
+    try {
+      const updateDoc = await getCachedUpdateDoc(updatesXmlUrl);
+      if (requestId !== modulesLoadRequestId) return;
+      const modules = parseModulesFromUpdate(updateDoc, arch);
+      renderModulesList(modules);
+      setModulesStatus(modules.length === 0 ? "No modules found for this selection." : "");
+    } catch (error) {
+      if (requestId !== modulesLoadRequestId) return;
+      if (error?.name === "AbortError") return;
+      resetModulesUi(false);
+      setModulesStatus("Failed to load modules.");
+    }
+  }
+
+  function loadExtensionsForSelection() {
+    if (!hasFullSelection() || !els.installExtensions.checked) {
+      resetExtensionsUi(false);
+      return;
+    }
+
+    const host = els.host.value;
+    const target = els.target.value;
+    const version = parseV(els.version.value);
+    const arch = els.arch.value;
+    const extensions = getRelevantExtensions(host, target, version, arch);
+    renderExtensionsList(extensions);
+    setExtensionsStatus(extensions.length === 0 ? "No extensions found for this selection." : "");
+  }
+
+  function syncAddonAvailability() {
+    if (!hasFullSelection()) {
+      resetModulesUi(true);
+      resetExtensionsUi(true);
+      return;
+    }
+    els.installModules.disabled = false;
+    els.installExtensions.disabled = false;
+    if (!els.installModules.checked) {
+      resetModulesUi(false);
+    }
+    if (!els.installExtensions.checked) {
+      resetExtensionsUi(false);
+    }
+  }
+
+  function updateOutputs() {
     const host = els.host.value;
     const target = els.target.value;
     const versionStr = els.version.value;
@@ -361,16 +751,25 @@
       els.copy.disabled = true;
       els.actionYaml.innerHTML = "&nbsp;";
       els.copyAction.disabled = true;
+      els.mirrorUrl.innerHTML = "&nbsp;";
+      els.copyMirror.disabled = true;
+      els.openMirror.disabled = true;
       return;
     }
 
     const version = parseV(versionStr);
-    const cmd = getInstallCommand(host, target, version, arch);
-    const actionYaml = getInstallQtActionYaml(host, target, version, arch);
+    const modules = getSelectedModules();
+    const extensions = getSelectedExtensions();
+    const cmd = getInstallCommand(host, target, version, arch, modules, extensions);
+    const actionYaml = getInstallQtActionYaml(host, target, version, arch, modules, extensions);
+    const mirrorUrl = getUpdateDirectoryUrl(host, target, version, arch);
     els.cmd.textContent = cmd;
     els.copy.disabled = false;
     els.actionYaml.innerHTML = renderYamlHighlighted(actionYaml);
     els.copyAction.disabled = false;
+    els.mirrorUrl.textContent = mirrorUrl;
+    els.copyMirror.disabled = false;
+    els.openMirror.disabled = false;
   }
 
   resetTarget(); resetVersion(); resetArch();
@@ -381,13 +780,15 @@
     const host = els.host.value;
 
     resetTarget(); resetVersion(); resetArch();
-    updateCommand();
+    updateOutputs();
 
     if (!host) return;
 
     const targets = getRelevantTargets(host);
     setOptions(els.target, targets, "Choose…");
     els.target.disabled = false;
+
+    syncAddonAvailability();
   });
 
   els.target.addEventListener("change", () => {
@@ -395,18 +796,17 @@
     const target = els.target.value;
 
     resetVersion(); resetArch();
-    updateCommand();
+    updateOutputs();
 
     if (!host || !target) return;
 
     const versions = getRelevantVersions(host, target)
       .map(v => ({ value: vToString(v), label: vToString(v) }));
-
-    // Optional: newest first (nice UX)
     versions.sort((a, b) => cmpV(parseV(b.value), parseV(a.value)));
-
     setOptions(els.version, versions, "Choose…");
     els.version.disabled = false;
+
+    syncAddonAvailability();
   });
 
   els.version.addEventListener("change", () => {
@@ -415,18 +815,63 @@
     const versionStr = els.version.value;
 
     resetArch();
-    updateCommand();
+    updateOutputs();
 
     if (!host || !target || !versionStr) return;
 
     const version = parseV(versionStr);
     const arches = getRelevantArches(host, target, version);
-
     setOptions(els.arch, arches, "Choose…");
     els.arch.disabled = false;
+
+    syncAddonAvailability();
+
+    if (arches.length === 1) {
+      els.arch.value = arches[0];
+      els.arch.dispatchEvent(new Event("change"));
+    }
   });
 
-  els.arch.addEventListener("change", updateCommand);
+  els.arch.addEventListener("change", () => {
+    if (els.installModules.checked) {
+      els.installModules.checked = false;
+    }
+    if (els.installExtensions.checked) {
+      els.installExtensions.checked = false;
+    }
+    syncAddonAvailability();
+    updateOutputs();
+  });
+
+  els.installModules.addEventListener("change", async () => {
+    if (els.installModules.checked) {
+      await loadModulesForSelection();
+    } else {
+      resetModulesUi(false);
+    }
+    updateOutputs();
+  });
+
+  els.installExtensions.addEventListener("change", () => {
+    if (els.installExtensions.checked) {
+      loadExtensionsForSelection();
+    } else {
+      resetExtensionsUi(false);
+    }
+    updateOutputs();
+  });
+
+  els.modulesList.addEventListener("change", (event) => {
+    if (!(event.target instanceof HTMLInputElement)) return;
+    if (event.target.type !== "checkbox") return;
+    updateOutputs();
+  });
+
+  els.extensionsList.addEventListener("change", (event) => {
+    if (!(event.target instanceof HTMLInputElement)) return;
+    if (event.target.type !== "checkbox") return;
+    updateOutputs();
+  });
 
   els.copy.addEventListener("click", async () => {
     const text = els.cmd.textContent || "";
@@ -461,7 +906,30 @@
     }
   });
 
-  updateCommand();
+  els.copyMirror.addEventListener("click", async () => {
+    const text = (els.mirrorUrl.textContent || "").trim();
+    try {
+      await navigator.clipboard.writeText(text);
+      const old = els.copyMirror.textContent;
+      els.copyMirror.textContent = "Copied!";
+      setTimeout(() => (els.copyMirror.textContent = old), 900);
+    } catch {
+      const r = document.createRange();
+      r.selectNodeContents(els.mirrorUrl);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(r);
+    }
+  });
+
+  els.openMirror.addEventListener("click", () => {
+    const url = (els.mirrorUrl.textContent || "").trim();
+    if (!url) return;
+    window.open(url, "_blank", "noopener,noreferrer");
+  });
+
+  syncAddonAvailability();
+  updateOutputs();
 })();
 </script>
 </body>
