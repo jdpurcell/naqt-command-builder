@@ -8,7 +8,7 @@
     :root { color-scheme: light dark; }
     body {
       font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-      margin: 0; padding: 24px;
+      margin: 0; padding: 20px;
       display: grid; place-items: start center;
     }
     .card {
@@ -18,7 +18,25 @@
       padding: 18px;
       box-shadow: 0 4px 18px rgba(0,0,0,.08);
     }
-    h1 { font-size: 18px; margin: 0 0 14px; }
+    .title-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    h1 { font-size: 18px; margin: 0; }
+    .repo-link {
+      font-size: 13px;
+      text-decoration: none;
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(127,127,127,.45);
+      background: rgba(127,127,127,.08);
+      transition: background-color .15s ease, transform .1s ease;
+    }
+    .repo-link:hover { background: rgba(127,127,127,.16); }
+    .repo-link:active { transform: translateY(1px); }
     .grid {
       display: grid;
       grid-template-columns: minmax(160px, 23fr) minmax(160px, 17fr) minmax(160px, 17fr) minmax(160px, 43fr);
@@ -129,7 +147,10 @@
 </head>
 <body>
   <div class="card">
-    <h1>naqt Command Builder</h1>
+    <div class="title-row">
+      <h1>naqt Command Builder</h1>
+      <a class="repo-link" href="https://github.com/jdpurcell/naqt-command-builder/" target="_blank" rel="noopener noreferrer">GitHub Repo ↗</a>
+    </div>
 
     <div class="grid">
       <div>
