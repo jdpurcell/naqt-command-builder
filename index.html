@@ -5,7 +5,19 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>naqt Command Builder</title>
   <style>
-    :root { color-scheme: light dark; }
+    :root {
+      color-scheme: light dark;
+      --yaml-k: #7ee787;
+      --yaml-c: #f0f6fc;
+      --yaml-v: #a5d6ff;
+    }
+    @media (prefers-color-scheme: light) {
+      :root {
+        --yaml-k: #1f7a36;
+        --yaml-c: #475467;
+        --yaml-v: #005f99;
+      }
+    }
     body {
       font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
       margin: 0; padding: 20px;
@@ -71,9 +83,9 @@
       overflow-x: auto;
       white-space: pre;
     }
-    .yaml-k { color: #7ee787; }
-    .yaml-c { color: #f0f6fc; }
-    .yaml-v { color: #a5d6ff; }
+    .yaml-k { color: var(--yaml-k); }
+    .yaml-c { color: var(--yaml-c); }
+    .yaml-v { color: var(--yaml-v); }
     .row {
       display: flex;
       gap: 10px;
