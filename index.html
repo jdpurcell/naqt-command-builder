@@ -236,26 +236,39 @@
   // Data (ported from C#)
   // -----------------------------
 
+  const QtRelease = (Major, Minor, LastPatch) => ({ Major, Minor, LastPatch });
   const Releases = [
-    { Major: 5, Minor: 12, LastPatch: 12 },
-    { Major: 5, Minor: 13, LastPatch: 2  },
-    { Major: 5, Minor: 14, LastPatch: 2  },
-    { Major: 5, Minor: 15, LastPatch: 2  },
-    { Major: 6, Minor: 0,  LastPatch: 4  },
-    { Major: 6, Minor: 1,  LastPatch: 3  },
-    { Major: 6, Minor: 2,  LastPatch: 4  },
-    { Major: 6, Minor: 3,  LastPatch: 2  },
-    { Major: 6, Minor: 4,  LastPatch: 3  },
-    { Major: 6, Minor: 5,  LastPatch: 3  },
-    { Major: 6, Minor: 6,  LastPatch: 3  },
-    { Major: 6, Minor: 7,  LastPatch: 3  },
-    { Major: 6, Minor: 8,  LastPatch: 3  },
-    { Major: 6, Minor: 9,  LastPatch: 3  },
-    { Major: 6, Minor: 10, LastPatch: 2  },
+    QtRelease(5, 12, 12),
+    QtRelease(5, 13,  2),
+    QtRelease(5, 14,  2),
+    QtRelease(5, 15,  2),
+    QtRelease(6,  0,  4),
+    QtRelease(6,  1,  3),
+    QtRelease(6,  2,  4),
+    QtRelease(6,  3,  2),
+    QtRelease(6,  4,  3),
+    QtRelease(6,  5,  3),
+    QtRelease(6,  6,  3),
+    QtRelease(6,  7,  3),
+    QtRelease(6,  8,  3),
+    QtRelease(6,  9,  3),
+    QtRelease(6, 10,  2),
   ];
 
-  const Hosts = ["windows", "windows_arm64", "linux", "linux_arm64", "mac"];
-  const Targets = ["desktop", "wasm", "android", "ios"];
+  const Hosts = [
+    "windows",
+    "windows_arm64",
+    "linux",
+    "linux_arm64",
+    "mac",
+  ];
+
+  const Targets = [
+    "desktop",
+    "wasm",
+    "android",
+    "ios",
+  ];
 
   // Version helpers (like System.Version)
   const V = (maj, min, pat) => ({ major: maj, minor: min, patch: pat });
@@ -293,7 +306,7 @@
       QtArch("win32_msvc2019", v => gte(v, V(5,15,0)) && lt(v, V(6,0,0))),
       QtArch("win64_mingw81", v => gte(v, V(5,15,0)) && lt(v, V(6,2,2))),
       QtArch("win64_msvc2019_64", v => gte(v, V(5,15,0)) && lt(v, V(6,8,0))),
-      QtArch("win64_msvc2019_arm64", v => gte(v, V(6,2,0))  && lt(v, V(6,8,0))),
+      QtArch("win64_msvc2019_arm64", v => gte(v, V(6,2,0)) && lt(v, V(6,8,0))),
       QtArch("win64_mingw", v => gte(v, V(6,2,2))),
       QtArch("win64_llvm_mingw", v => gte(v, V(6,7,0))),
       QtArch("win64_msvc2022_64", v => gte(v, V(6,8,0))),
@@ -332,49 +345,49 @@
   const QtExtension = (Name, IsAvailable) => ({ Name, IsAvailable });
   const ExtensionsByPlatformAndArch = {
     "windows.desktop.win64_msvc2022_64": [
-      QtExtension("qtpdf", v => gte(v, V(6, 8, 0))),
-      QtExtension("qtwebengine", v => gte(v, V(6, 8, 0))),
+      QtExtension("qtpdf", v => gte(v, V(6,8,0))),
+      QtExtension("qtwebengine", v => gte(v, V(6,8,0))),
     ],
     "windows.desktop.win64_msvc2022_arm64_cross_compiled": [
-      QtExtension("qtpdf", v => gte(v, V(6, 9, 2))),
-      QtExtension("qtwebengine", v => gte(v, V(6, 9, 2))),
+      QtExtension("qtpdf", v => gte(v, V(6,9,2))),
+      QtExtension("qtwebengine", v => gte(v, V(6,9,2))),
     ],
     "windows.desktop.win64_mingw": [
-      QtExtension("qtpdf", v => gte(v, V(6, 8, 0))),
+      QtExtension("qtpdf", v => gte(v, V(6,8,0))),
     ],
     "windows.desktop.win64_llvm_mingw": [
-      QtExtension("qtpdf", v => gte(v, V(6, 8, 0))),
+      QtExtension("qtpdf", v => gte(v, V(6,8,0))),
     ],
     "windows_arm64.desktop.win64_msvc2022_arm64": [
-      QtExtension("qtpdf", v => gte(v, V(6, 9, 2))),
-      QtExtension("qtwebengine", v => gte(v, V(6, 10, 0))),
+      QtExtension("qtpdf", v => gte(v, V(6,9,2))),
+      QtExtension("qtwebengine", v => gte(v, V(6,10,0))),
     ],
     "mac.desktop.clang_64": [
-      QtExtension("qtpdf", v => gte(v, V(6, 8, 0))),
-      QtExtension("qtwebengine", v => gte(v, V(6, 8, 0))),
+      QtExtension("qtpdf", v => gte(v, V(6,8,0))),
+      QtExtension("qtwebengine", v => gte(v, V(6,8,0))),
     ],
     "linux.desktop.linux_gcc_64": [
-      QtExtension("qtpdf", v => gte(v, V(6, 8, 0))),
-      QtExtension("qtwebengine", v => gte(v, V(6, 8, 0))),
+      QtExtension("qtpdf", v => gte(v, V(6,8,0))),
+      QtExtension("qtwebengine", v => gte(v, V(6,8,0))),
     ],
     "linux_arm64.desktop.linux_gcc_arm64": [
-      QtExtension("qtpdf", v => gte(v, V(6, 8, 0))),
-      QtExtension("qtwebengine", v => gte(v, V(6, 8, 0))),
+      QtExtension("qtpdf", v => gte(v, V(6,8,0))),
+      QtExtension("qtwebengine", v => gte(v, V(6,8,0))),
     ],
     "android.android_arm64_v8a": [
-      QtExtension("qtpdf", v => gte(v, V(6, 8, 0))),
+      QtExtension("qtpdf", v => gte(v, V(6,8,0))),
     ],
     "android.android_armv7": [
-      QtExtension("qtpdf", v => gte(v, V(6, 8, 0))),
+      QtExtension("qtpdf", v => gte(v, V(6,8,0))),
     ],
     "android.android_x86": [
-      QtExtension("qtpdf", v => gte(v, V(6, 8, 0))),
+      QtExtension("qtpdf", v => gte(v, V(6,8,0))),
     ],
     "android.android_x86_64": [
-      QtExtension("qtpdf", v => gte(v, V(6, 8, 0))),
+      QtExtension("qtpdf", v => gte(v, V(6,8,0))),
     ],
     "ios.ios": [
-      QtExtension("qtpdf", v => gte(v, V(6, 8, 0))),
+      QtExtension("qtpdf", v => gte(v, V(6,8,0))),
     ],
   };
 
@@ -392,35 +405,36 @@
   }
 
   function getRelevantVersions(host, target) {
+    const isCrossCompile = target !== "desktop";
+    const arches = ArchesByPlatform[makePlatform(host, target)] || [];
+    const desktopArches = isCrossCompile ? (ArchesByPlatform[makePlatform(host, "desktop")] || []) : [];
     const out = [];
     for (const version of Versions) {
-      if (host === "linux_arm64"   && lt(version, V(6,7,0))) continue;
-      if (host === "windows_arm64" && lt(version, V(6,8,0))) continue;
-      if (target === "wasm") {
-        const min = (host === "linux") ? V(5,13,0) : V(5,13,1);
-        if (lt(version, min)) continue;
-        if (gte(version, V(6, 0, 0)) && lt(version, V(6, 2, 0))) continue;
-      }
+      if (!arches.some(a => a.IsAvailable(version))) continue;
+      if (isCrossCompile && !desktopArches.some(a => a.IsAvailable(version))) continue;
+      if (target === "wasm" && cmpV(version, V(5,13,0)) === 0 && host !== "linux") continue;
       out.push(version);
     }
     return out;
   }
 
   function getRelevantArches(host, target, version) {
-    const platform = (target === "desktop") ? `${host}.${target}` : target;
-    const arches = ArchesByPlatform[platform] || [];
+    const arches = ArchesByPlatform[makePlatform(host, target)] || [];
     return arches.filter(a => a.IsAvailable(version)).map(a => a.Name);
   }
 
   function getRelevantExtensions(host, target, version, arch) {
-    const platform = (target === "desktop") ? `${host}.${target}` : target;
-    const extensions = ExtensionsByPlatformAndArch[`${platform}.${arch}`] || [];
+    const extensions = ExtensionsByPlatformAndArch[`${makePlatform(host, target)}.${arch}`] || [];
     return extensions.filter(e => e.IsAvailable(version)).map(e => e.Name);
   }
 
+  function makePlatform(host, target) {
+    return target === "desktop" ? `${host}.${target}` : target;
+  }
+
   function usesAllOsHost(target, version) {
-    if (target === "wasm" && gte(version, V(6, 7, 0))) return true;
-    if (target === "android" && gte(version, V(6, 7, 0))) return true;
+    if (target === "wasm" && gte(version, V(6,7,0))) return true;
+    if (target === "android" && gte(version, V(6,7,0))) return true;
     return false;
   }
 
@@ -469,29 +483,26 @@
       host === "windows" ? `${host}_x86` :
       host === "linux" || host === "mac" ? `${host}_x64` :
       host;
-    const actualTarget = target === "wasm" && lt(version, V(6, 7, 0)) ? "desktop" : target;
+    const actualTarget = target === "wasm" && lt(version, V(6,7,0)) ? "desktop" : target;
     const variant =
-      host === "windows" && target === "desktop" && gte(version, V(6, 11, 0)) && arch.startsWith("win64_") ? arch.substring("win64_".length) :
-      target === "android" && gte(version, V(6, 0, 0)) && arch.startsWith("android_") ? arch.substring("android_".length) :
-      target === "wasm" ? (gte(version, V(6, 5, 0)) ? arch : "wasm") :
+      host === "windows" && target === "desktop" && gte(version, V(6,11,0)) && arch.startsWith("win64_") ? arch.substring("win64_".length) :
+      target === "android" && gte(version, V(6,0,0)) && arch.startsWith("android_") ? arch.substring("android_".length) :
+      target === "wasm" ? (gte(version, V(6,5,0)) ? arch : "wasm") :
       "";
     const dirForVersion = `qt${version.major}_${version.major}${version.minor}${version.patch}`;
     const dirForVersionAndVariant = variant.length !== 0 ? `${dirForVersion}_${variant}` : dirForVersion;
-    const actualDir = gte(version, V(6, 8, 0)) ? `${dirForVersion}/${dirForVersionAndVariant}` : dirForVersionAndVariant;
+    const actualDir = gte(version, V(6,8,0)) ? `${dirForVersion}/${dirForVersionAndVariant}` : dirForVersionAndVariant;
     return `https://download.qt.io/online/qtsdkrepository/${actualHost}/${actualTarget}/${actualDir}/`;
   }
 
   function parseModulesFromUpdate(updateDoc, arch) {
     const modules = [];
     for (const pkg of updateDoc.getElementsByTagName("PackageUpdate")) {
-      const nameEl = Array.from(pkg.children).find((el) => el.tagName === "Name");
-      const packageName = nameEl?.textContent?.trim();
-      if (!packageName) continue;
-      const nameSegments = packageName.split(".");
+      const nameEl = Array.from(pkg.children).find(el => el.tagName === "Name");
+      const nameSegments = nameEl.textContent.trim().split(".");
       if (nameSegments.length < 5) continue;
       if (nameSegments[nameSegments.length - 1] !== arch) continue;
-      const hasGroupName = nameSegments.length >= 6 && nameSegments[3] === "addons";
-      const startSegment = hasGroupName ? 4 : 3;
+      const startSegment = nameSegments.length >= 6 && nameSegments[3] === "addons" ? 4 : 3;
       modules.push(nameSegments.slice(startSegment, -1).join("."));
     }
     return modules;
@@ -527,12 +538,12 @@
   // -----------------------------
 
   const els = {
-    host:   document.getElementById("host"),
+    host: document.getElementById("host"),
     target: document.getElementById("target"),
-    version:document.getElementById("version"),
-    arch:   document.getElementById("arch"),
-    cmd:    document.getElementById("cmd"),
-    copy:   document.getElementById("copy"),
+    version: document.getElementById("version"),
+    arch: document.getElementById("arch"),
+    cmd: document.getElementById("cmd"),
+    copy: document.getElementById("copy"),
     actionYaml: document.getElementById("actionYaml"),
     copyAction: document.getElementById("copyAction"),
     mirrorUrl: document.getElementById("mirrorUrl"),
@@ -598,7 +609,7 @@
 
   function getSelectedAddonValues(installCheckbox, listEl) {
     if (!installCheckbox.checked) return [];
-    return Array.from(listEl.querySelectorAll('input[type="checkbox"]:checked')).map((input) => input.value);
+    return Array.from(listEl.querySelectorAll('input[type="checkbox"]:checked')).map(input => input.value);
   }
 
   function resetModulesUi(forceDisable = false) {
