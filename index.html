@@ -278,9 +278,8 @@
   };
   const cmpV = (a, b) => (a.major - b.major) || (a.minor - b.minor) || (a.patch - b.patch);
   const lt = (a, b) => cmpV(a, b) < 0;
-  const lte = (a, b) => cmpV(a, b) <= 0;
-  const gt = (a, b) => cmpV(a, b) > 0;
   const gte = (a, b) => cmpV(a, b) >= 0;
+  const btw = (v, min, max) => gte(v, min) && lt(v, max);
   const vToString = (v) => `${v.major}.${v.minor}.${v.patch}`;
 
   // Versions = all patches for each release (0..LastPatch)
@@ -301,12 +300,12 @@
       QtArch("win64_mingw73", v => lt(v, V(5,15,0))),
       QtArch("win64_msvc2015_64", v => lt(v, V(6,0,0))),
       QtArch("win64_msvc2017_64", v => lt(v, V(5,15,0))),
-      QtArch("win32_mingw73", v => gte(v, V(5,12,2)) && lt(v, V(5,15,0))),
-      QtArch("win32_mingw81", v => gte(v, V(5,15,0)) && lt(v, V(6,0,0))),
-      QtArch("win32_msvc2019", v => gte(v, V(5,15,0)) && lt(v, V(6,0,0))),
-      QtArch("win64_mingw81", v => gte(v, V(5,15,0)) && lt(v, V(6,2,2))),
-      QtArch("win64_msvc2019_64", v => gte(v, V(5,15,0)) && lt(v, V(6,8,0))),
-      QtArch("win64_msvc2019_arm64", v => gte(v, V(6,2,0)) && lt(v, V(6,8,0))),
+      QtArch("win32_mingw73", v => btw(v, V(5,12,2), V(5,15,0))),
+      QtArch("win32_mingw81", v => btw(v, V(5,15,0), V(6,0,0))),
+      QtArch("win32_msvc2019", v => btw(v, V(5,15,0), V(6,0,0))),
+      QtArch("win64_mingw81", v => btw(v, V(5,15,0), V(6,2,2))),
+      QtArch("win64_msvc2019_64", v => btw(v, V(5,15,0), V(6,8,0))),
+      QtArch("win64_msvc2019_arm64", v => btw(v, V(6,2,0), V(6,8,0))),
       QtArch("win64_mingw", v => gte(v, V(6,2,2))),
       QtArch("win64_llvm_mingw", v => gte(v, V(6,7,0))),
       QtArch("win64_msvc2022_64", v => gte(v, V(6,8,0))),
@@ -326,68 +325,806 @@
       QtArch("clang_64", _v => true),
     ],
     "wasm": [
-      QtArch("wasm_32", v => gte(v, V(5,13,0)) && lt(v, V(6,5,0)) && !(gte(v, V(6,0,0)) && lt(v, V(6,2,0)))),
+      QtArch("wasm_32", v => btw(v, V(5,13,0), V(6,5,0)) && !btw(v, V(6,0,0), V(6,2,0))),
       QtArch("wasm_singlethread", v => gte(v, V(6,5,0))),
       QtArch("wasm_multithread", v => gte(v, V(6,5,0))),
     ],
     "android": [
-      QtArch("android_arm64_v8a", v => !(gte(v, V(5,14,0)) && lt(v, V(6,0,0)))),
-      QtArch("android_armv7", v => !(gte(v, V(5,14,0)) && lt(v, V(6,0,0)))),
-      QtArch("android_x86", v => !(gte(v, V(5,14,0)) && lt(v, V(6,0,0)))),
-      QtArch("android_x86_64", v => gte(v, V(5,13,0)) && !(gte(v, V(5,14,0)) && lt(v, V(6,0,0)))),
-      QtArch("android", v => gte(v, V(5,14,0)) && lt(v, V(6,0,0))),
+      QtArch("android_arm64_v8a", v => !btw(v, V(5,14,0), V(6,0,0))),
+      QtArch("android_armv7", v => !btw(v, V(5,14,0), V(6,0,0))),
+      QtArch("android_x86", v => !btw(v, V(5,14,0), V(6,0,0))),
+      QtArch("android_x86_64", v => gte(v, V(5,13,0)) && !btw(v, V(5,14,0), V(6,0,0))),
+      QtArch("android", v => btw(v, V(5,14,0), V(6,0,0))),
     ],
     "ios": [
       QtArch("ios", _v => true),
     ],
   };
 
-  const QtExtension = (Name, IsAvailable) => ({ Name, IsAvailable });
-  const ExtensionsByPlatformAndArch = {
-    "windows.desktop.win64_msvc2022_64": [
-      QtExtension("qtpdf", v => gte(v, V(6,8,0))),
-      QtExtension("qtwebengine", v => gte(v, V(6,8,0))),
+  const QtMod = (Name, IsAvailable) => ({ Name, IsAvailable });
+  const ModulesByPlatformAndArch = {
+    "windows.desktop.win32_msvc2017": [
+      QtMod("qtcharts", _v => true),
+      QtMod("qtdatavis3d", _v => true),
+      QtMod("qtlottie", v => gte(v, V(5,13,0))),
+      QtMod("qtnetworkauth", _v => true),
+      QtMod("qtpurchasing", _v => true),
+      QtMod("qtquick3d", v => gte(v, V(5,14,0))),
+      QtMod("qtquicktimeline", v => gte(v, V(5,14,0))),
+      QtMod("qtscript", _v => true),
+      QtMod("qtvirtualkeyboard", _v => true),
+      QtMod("qtwebengine", _v => true),
+      QtMod("qtwebglplugin", _v => true),
     ],
-    "windows.desktop.win64_msvc2022_arm64_cross_compiled": [
-      QtExtension("qtpdf", v => gte(v, V(6,9,2))),
-      QtExtension("qtwebengine", v => gte(v, V(6,9,2))),
+    "windows.desktop.win64_mingw73": [
+      QtMod("qtcharts", _v => true),
+      QtMod("qtdatavis3d", _v => true),
+      QtMod("qtlottie", v => gte(v, V(5,13,0))),
+      QtMod("qtnetworkauth", _v => true),
+      QtMod("qtpurchasing", _v => true),
+      QtMod("qtquick3d", v => gte(v, V(5,14,0))),
+      QtMod("qtquicktimeline", v => gte(v, V(5,14,0))),
+      QtMod("qtscript", _v => true),
+      QtMod("qtvirtualkeyboard", _v => true),
+      QtMod("qtwebglplugin", _v => true),
+    ],
+    "windows.desktop.win64_msvc2015_64": [
+      QtMod("qtcharts", _v => true),
+      QtMod("qtdatavis3d", _v => true),
+      QtMod("qtlottie", v => gte(v, V(5,13,0))),
+      QtMod("qtnetworkauth", _v => true),
+      QtMod("qtpurchasing", _v => true),
+      QtMod("qtquick3d", v => gte(v, V(5,14,0))),
+      QtMod("qtquicktimeline", v => gte(v, V(5,14,0))),
+      QtMod("qtscript", _v => true),
+      QtMod("qtvirtualkeyboard", _v => true),
+      QtMod("qtwebglplugin", _v => true),
+    ],
+    "windows.desktop.win64_msvc2017_64": [
+      QtMod("qtcharts", _v => true),
+      QtMod("qtdatavis3d", _v => true),
+      QtMod("qtlottie", v => gte(v, V(5,13,0))),
+      QtMod("qtnetworkauth", _v => true),
+      QtMod("qtpurchasing", _v => true),
+      QtMod("qtquick3d", v => gte(v, V(5,14,0))),
+      QtMod("qtquicktimeline", v => gte(v, V(5,14,0))),
+      QtMod("qtscript", _v => true),
+      QtMod("qtvirtualkeyboard", _v => true),
+      QtMod("qtwebengine", _v => true),
+      QtMod("qtwebglplugin", _v => true),
+    ],
+    "windows.desktop.win32_mingw73": [
+      QtMod("qtcharts", _v => true),
+      QtMod("qtdatavis3d", _v => true),
+      QtMod("qtlottie", v => gte(v, V(5,13,0))),
+      QtMod("qtnetworkauth", _v => true),
+      QtMod("qtpurchasing", _v => true),
+      QtMod("qtquick3d", v => gte(v, V(5,14,0))),
+      QtMod("qtquicktimeline", v => gte(v, V(5,14,0))),
+      QtMod("qtscript", _v => true),
+      QtMod("qtvirtualkeyboard", _v => true),
+      QtMod("qtwebglplugin", _v => true),
+    ],
+    "windows.desktop.win32_mingw81": [
+      QtMod("qtcharts", _v => true),
+      QtMod("qtdatavis3d", _v => true),
+      QtMod("qtlottie", _v => true),
+      QtMod("qtnetworkauth", _v => true),
+      QtMod("qtpurchasing", _v => true),
+      QtMod("qtquick3d", _v => true),
+      QtMod("qtquicktimeline", _v => true),
+      QtMod("qtscript", _v => true),
+      QtMod("qtvirtualkeyboard", _v => true),
+      QtMod("qtwebglplugin", _v => true),
+    ],
+    "windows.desktop.win32_msvc2019": [
+      QtMod("qtcharts", _v => true),
+      QtMod("qtdatavis3d", _v => true),
+      QtMod("qtlottie", _v => true),
+      QtMod("qtnetworkauth", _v => true),
+      QtMod("qtpurchasing", _v => true),
+      QtMod("qtquick3d", _v => true),
+      QtMod("qtquicktimeline", _v => true),
+      QtMod("qtscript", _v => true),
+      QtMod("qtvirtualkeyboard", _v => true),
+      QtMod("qtwebengine", _v => true),
+      QtMod("qtwebglplugin", _v => true),
+    ],
+    "windows.desktop.win64_mingw81": [
+      QtMod("qt3d", v => gte(v, V(6,1,0))),
+      QtMod("qt5compat", v => gte(v, V(6,0,0))),
+      QtMod("qtactiveqt", v => gte(v, V(6,1,0))),
+      QtMod("qtcharts", v => lt(v, V(6,0,0)) || gte(v, V(6,1,0))),
+      QtMod("qtconnectivity", v => gte(v, V(6,2,0))),
+      QtMod("qtdatavis3d", v => lt(v, V(6,0,0)) || gte(v, V(6,1,0))),
+      QtMod("qtimageformats", v => gte(v, V(6,1,0))),
+      QtMod("qtlottie", v => lt(v, V(6,0,0)) || gte(v, V(6,1,0))),
+      QtMod("qtmultimedia", v => gte(v, V(6,2,0))),
+      QtMod("qtnetworkauth", v => lt(v, V(6,0,0)) || gte(v, V(6,1,0))),
+      QtMod("qtpositioning", v => gte(v, V(6,2,0))),
+      QtMod("qtpurchasing", v => lt(v, V(6,0,0))),
+      QtMod("qtquick3d", _v => true),
+      QtMod("qtquicktimeline", _v => true),
+      QtMod("qtremoteobjects", v => gte(v, V(6,2,0))),
+      QtMod("qtscript", v => lt(v, V(6,0,0))),
+      QtMod("qtscxml", v => gte(v, V(6,1,0))),
+      QtMod("qtsensors", v => gte(v, V(6,2,0))),
+      QtMod("qtserialbus", v => gte(v, V(6,2,0))),
+      QtMod("qtserialport", v => gte(v, V(6,2,0))),
+      QtMod("qtshadertools", v => gte(v, V(6,0,0))),
+      QtMod("qtvirtualkeyboard", v => lt(v, V(6,0,0)) || gte(v, V(6,1,0))),
+      QtMod("qtwebchannel", v => gte(v, V(6,2,0))),
+      QtMod("qtwebglplugin", v => lt(v, V(6,0,0))),
+      QtMod("qtwebsockets", v => gte(v, V(6,2,0))),
+      QtMod("qtwebview", v => gte(v, V(6,2,0))),
+    ],
+    "windows.desktop.win64_msvc2019_64": [
+      QtMod("qt3d", v => gte(v, V(6,1,0))),
+      QtMod("qt5compat", v => gte(v, V(6,0,0))),
+      QtMod("qtactiveqt", v => gte(v, V(6,1,0))),
+      QtMod("qtcharts", v => lt(v, V(6,0,0)) || gte(v, V(6,1,0))),
+      QtMod("qtconnectivity", v => gte(v, V(6,2,0))),
+      QtMod("qtdatavis3d", v => lt(v, V(6,0,0)) || gte(v, V(6,1,0))),
+      QtMod("qtgraphs", v => gte(v, V(6,6,0))),
+      QtMod("qtgrpc", v => gte(v, V(6,5,0))),
+      QtMod("qthttpserver", v => gte(v, V(6,4,0))),
+      QtMod("qtimageformats", v => gte(v, V(6,1,0))),
+      QtMod("qtlanguageserver", v => gte(v, V(6,3,0))),
+      QtMod("qtlocation", v => gte(v, V(6,5,0))),
+      QtMod("qtlottie", v => lt(v, V(6,0,0)) || gte(v, V(6,1,0))),
+      QtMod("qtmultimedia", v => gte(v, V(6,2,0))),
+      QtMod("qtnetworkauth", v => lt(v, V(6,0,0)) || gte(v, V(6,1,0))),
+      QtMod("qtpdf", v => gte(v, V(6,3,0))),
+      QtMod("qtpositioning", v => gte(v, V(6,2,0))),
+      QtMod("qtpurchasing", v => lt(v, V(6,0,0))),
+      QtMod("qtquick3d", _v => true),
+      QtMod("qtquick3dphysics", v => gte(v, V(6,4,0))),
+      QtMod("qtquickeffectmaker", v => gte(v, V(6,5,0))),
+      QtMod("qtquicktimeline", _v => true),
+      QtMod("qtremoteobjects", v => gte(v, V(6,2,0))),
+      QtMod("qtscript", v => lt(v, V(6,0,0))),
+      QtMod("qtscxml", v => gte(v, V(6,1,0))),
+      QtMod("qtsensors", v => gte(v, V(6,2,0))),
+      QtMod("qtserialbus", v => gte(v, V(6,2,0))),
+      QtMod("qtserialport", v => gte(v, V(6,2,0))),
+      QtMod("qtshadertools", v => gte(v, V(6,0,0))),
+      QtMod("qtspeech", v => gte(v, V(6,4,0))),
+      QtMod("qtvirtualkeyboard", v => lt(v, V(6,0,0)) || gte(v, V(6,1,0))),
+      QtMod("qtwebchannel", v => gte(v, V(6,2,0))),
+      QtMod("qtwebengine", v => lt(v, V(6,0,0)) || gte(v, V(6,2,0))),
+      QtMod("qtwebglplugin", v => lt(v, V(6,0,0))),
+      QtMod("qtwebsockets", v => gte(v, V(6,2,0))),
+      QtMod("qtwebview", v => gte(v, V(6,2,0))),
+    ],
+    "windows.desktop.win64_msvc2019_arm64": [
+      QtMod("qt3d", _v => true),
+      QtMod("qt5compat", _v => true),
+      QtMod("qtactiveqt", _v => true),
+      QtMod("qtcharts", _v => true),
+      QtMod("qtconnectivity", _v => true),
+      QtMod("qtdatavis3d", _v => true),
+      QtMod("qtgraphs", v => gte(v, V(6,6,0))),
+      QtMod("qtgrpc", v => gte(v, V(6,5,0))),
+      QtMod("qthttpserver", v => gte(v, V(6,4,0))),
+      QtMod("qtimageformats", _v => true),
+      QtMod("qtlanguageserver", v => gte(v, V(6,3,0))),
+      QtMod("qtlocation", v => gte(v, V(6,5,0))),
+      QtMod("qtlottie", _v => true),
+      QtMod("qtmultimedia", _v => true),
+      QtMod("qtnetworkauth", _v => true),
+      QtMod("qtpositioning", _v => true),
+      QtMod("qtquick3d", _v => true),
+      QtMod("qtquick3dphysics", v => gte(v, V(6,4,0))),
+      QtMod("qtquicktimeline", _v => true),
+      QtMod("qtremoteobjects", _v => true),
+      QtMod("qtscxml", _v => true),
+      QtMod("qtsensors", _v => true),
+      QtMod("qtserialbus", _v => true),
+      QtMod("qtserialport", _v => true),
+      QtMod("qtshadertools", _v => true),
+      QtMod("qtspeech", v => gte(v, V(6,4,0))),
+      QtMod("qtvirtualkeyboard", _v => true),
+      QtMod("qtwebchannel", _v => true),
+      QtMod("qtwebsockets", _v => true),
+      QtMod("qtwebview", v => btw(v, V(6,3,0), V(6,4,0))),
     ],
     "windows.desktop.win64_mingw": [
-      QtExtension("qtpdf", v => gte(v, V(6,8,0))),
+      QtMod("qt3d", _v => true),
+      QtMod("qt5compat", _v => true),
+      QtMod("qtactiveqt", _v => true),
+      QtMod("qtcharts", _v => true),
+      QtMod("qtconnectivity", _v => true),
+      QtMod("qtdatavis3d", _v => true),
+      QtMod("qtgraphs", v => gte(v, V(6,6,0))),
+      QtMod("qtgrpc", v => gte(v, V(6,5,0))),
+      QtMod("qthttpserver", v => gte(v, V(6,4,0))),
+      QtMod("qtimageformats", _v => true),
+      QtMod("qtlanguageserver", v => gte(v, V(6,3,0))),
+      QtMod("qtlocation", v => gte(v, V(6,5,0))),
+      QtMod("qtlottie", _v => true),
+      QtMod("qtmultimedia", _v => true),
+      QtMod("qtnetworkauth", _v => true),
+      QtMod("qtpdf", v => btw(v, V(6,6,0), V(6,8,0))),
+      QtMod("qtpositioning", _v => true),
+      QtMod("qtquick3d", _v => true),
+      QtMod("qtquick3dphysics", v => gte(v, V(6,4,0))),
+      QtMod("qtquickeffectmaker", v => gte(v, V(6,5,0))),
+      QtMod("qtquicktimeline", _v => true),
+      QtMod("qtremoteobjects", _v => true),
+      QtMod("qtscxml", _v => true),
+      QtMod("qtsensors", _v => true),
+      QtMod("qtserialbus", _v => true),
+      QtMod("qtserialport", _v => true),
+      QtMod("qtshadertools", _v => true),
+      QtMod("qtspeech", v => gte(v, V(6,4,0))),
+      QtMod("qtvirtualkeyboard", _v => true),
+      QtMod("qtwebchannel", _v => true),
+      QtMod("qtwebsockets", _v => true),
+      QtMod("qtwebview", _v => true),
     ],
     "windows.desktop.win64_llvm_mingw": [
-      QtExtension("qtpdf", v => gte(v, V(6,8,0))),
+      QtMod("qt3d", _v => true),
+      QtMod("qt5compat", _v => true),
+      QtMod("qtactiveqt", _v => true),
+      QtMod("qtcharts", _v => true),
+      QtMod("qtconnectivity", _v => true),
+      QtMod("qtdatavis3d", _v => true),
+      QtMod("qtgraphs", _v => true),
+      QtMod("qtgrpc", _v => true),
+      QtMod("qthttpserver", _v => true),
+      QtMod("qtimageformats", _v => true),
+      QtMod("qtlanguageserver", _v => true),
+      QtMod("qtlocation", _v => true),
+      QtMod("qtlottie", _v => true),
+      QtMod("qtmultimedia", _v => true),
+      QtMod("qtnetworkauth", _v => true),
+      QtMod("qtpdf", v => lt(v, V(6,8,0))),
+      QtMod("qtpositioning", _v => true),
+      QtMod("qtquick3d", _v => true),
+      QtMod("qtquick3dphysics", _v => true),
+      QtMod("qtquickeffectmaker", _v => true),
+      QtMod("qtquicktimeline", _v => true),
+      QtMod("qtremoteobjects", _v => true),
+      QtMod("qtscxml", _v => true),
+      QtMod("qtsensors", _v => true),
+      QtMod("qtserialbus", _v => true),
+      QtMod("qtserialport", _v => true),
+      QtMod("qtshadertools", _v => true),
+      QtMod("qtspeech", _v => true),
+      QtMod("qtvirtualkeyboard", _v => true),
+      QtMod("qtwebchannel", _v => true),
+      QtMod("qtwebsockets", _v => true),
+      QtMod("qtwebview", _v => true),
+    ],
+    "windows.desktop.win64_msvc2022_64": [
+      QtMod("qt3d", _v => true),
+      QtMod("qt5compat", _v => true),
+      QtMod("qtactiveqt", _v => true),
+      QtMod("qtcharts", _v => true),
+      QtMod("qtconnectivity", _v => true),
+      QtMod("qtdatavis3d", _v => true),
+      QtMod("qtgraphs", _v => true),
+      QtMod("qtgrpc", _v => true),
+      QtMod("qthttpserver", _v => true),
+      QtMod("qtimageformats", _v => true),
+      QtMod("qtlanguageserver", _v => true),
+      QtMod("qtlocation", _v => true),
+      QtMod("qtlottie", _v => true),
+      QtMod("qtmultimedia", _v => true),
+      QtMod("qtnetworkauth", _v => true),
+      QtMod("qtpositioning", _v => true),
+      QtMod("qtquick3d", _v => true),
+      QtMod("qtquick3dphysics", _v => true),
+      QtMod("qtquickeffectmaker", _v => true),
+      QtMod("qtquicktimeline", _v => true),
+      QtMod("qtremoteobjects", _v => true),
+      QtMod("qtscxml", _v => true),
+      QtMod("qtsensors", _v => true),
+      QtMod("qtserialbus", _v => true),
+      QtMod("qtserialport", _v => true),
+      QtMod("qtshadertools", _v => true),
+      QtMod("qtspeech", _v => true),
+      QtMod("qtvirtualkeyboard", _v => true),
+      QtMod("qtwebchannel", _v => true),
+      QtMod("qtwebsockets", _v => true),
+      QtMod("qtwebview", _v => true),
+    ],
+    "windows.desktop.win64_msvc2022_arm64_cross_compiled": [
+      QtMod("qt3d", _v => true),
+      QtMod("qt5compat", _v => true),
+      QtMod("qtactiveqt", _v => true),
+      QtMod("qtcharts", _v => true),
+      QtMod("qtconnectivity", _v => true),
+      QtMod("qtdatavis3d", _v => true),
+      QtMod("qtgraphs", _v => true),
+      QtMod("qtgrpc", _v => true),
+      QtMod("qthttpserver", _v => true),
+      QtMod("qtimageformats", _v => true),
+      QtMod("qtlanguageserver", _v => true),
+      QtMod("qtlocation", _v => true),
+      QtMod("qtlottie", _v => true),
+      QtMod("qtmultimedia", _v => true),
+      QtMod("qtnetworkauth", _v => true),
+      QtMod("qtpositioning", _v => true),
+      QtMod("qtquick3d", _v => true),
+      QtMod("qtquick3dphysics", _v => true),
+      QtMod("qtquicktimeline", _v => true),
+      QtMod("qtremoteobjects", _v => true),
+      QtMod("qtscxml", _v => true),
+      QtMod("qtsensors", _v => true),
+      QtMod("qtserialbus", _v => true),
+      QtMod("qtserialport", _v => true),
+      QtMod("qtshadertools", _v => true),
+      QtMod("qtspeech", _v => true),
+      QtMod("qtvirtualkeyboard", _v => true),
+      QtMod("qtwebchannel", _v => true),
+      QtMod("qtwebsockets", _v => true),
+      QtMod("qtwebview", v => gte(v, V(6,9,3))),
     ],
     "windows_arm64.desktop.win64_msvc2022_arm64": [
-      QtExtension("qtpdf", v => gte(v, V(6,9,2))),
-      QtExtension("qtwebengine", v => gte(v, V(6,10,0))),
+      QtMod("qt3d", v => gte(v, V(6,10,0))),
+      QtMod("qt5compat", _v => true),
+      QtMod("qtactiveqt", _v => true),
+      QtMod("qtcharts", _v => true),
+      QtMod("qtconnectivity", _v => true),
+      QtMod("qtdatavis3d", v => gte(v, V(6,10,0))),
+      QtMod("qtgraphs", _v => true),
+      QtMod("qtgrpc", _v => true),
+      QtMod("qthttpserver", _v => true),
+      QtMod("qtimageformats", _v => true),
+      QtMod("qtlanguageserver", _v => true),
+      QtMod("qtlocation", _v => true),
+      QtMod("qtlottie", _v => true),
+      QtMod("qtmultimedia", _v => true),
+      QtMod("qtnetworkauth", _v => true),
+      QtMod("qtpositioning", _v => true),
+      QtMod("qtquick3d", _v => true),
+      QtMod("qtquick3dphysics", _v => true),
+      QtMod("qtquickeffectmaker", v => gte(v, V(6,10,0))),
+      QtMod("qtquicktimeline", _v => true),
+      QtMod("qtremoteobjects", _v => true),
+      QtMod("qtscxml", _v => true),
+      QtMod("qtsensors", _v => true),
+      QtMod("qtserialbus", _v => true),
+      QtMod("qtserialport", _v => true),
+      QtMod("qtshadertools", _v => true),
+      QtMod("qtspeech", _v => true),
+      QtMod("qtvirtualkeyboard", _v => true),
+      QtMod("qtwebchannel", _v => true),
+      QtMod("qtwebsockets", _v => true),
+      QtMod("qtwebview", v => gte(v, V(6,9,3))),
     ],
-    "mac.desktop.clang_64": [
-      QtExtension("qtpdf", v => gte(v, V(6,8,0))),
-      QtExtension("qtwebengine", v => gte(v, V(6,8,0))),
+    "linux.desktop.gcc_64": [
+      QtMod("qt3d", v => gte(v, V(6,1,0))),
+      QtMod("qt5compat", v => gte(v, V(6,0,0))),
+      QtMod("qtcharts", v => lt(v, V(6,0,0)) || gte(v, V(6,1,0))),
+      QtMod("qtconnectivity", v => gte(v, V(6,2,0))),
+      QtMod("qtdatavis3d", v => lt(v, V(6,0,0)) || gte(v, V(6,1,0))),
+      QtMod("qtgraphs", v => gte(v, V(6,6,0))),
+      QtMod("qtgrpc", v => gte(v, V(6,5,0))),
+      QtMod("qthttpserver", v => gte(v, V(6,4,0))),
+      QtMod("qtimageformats", v => gte(v, V(6,1,0))),
+      QtMod("qtlanguageserver", v => gte(v, V(6,3,0))),
+      QtMod("qtlocation", v => gte(v, V(6,5,0))),
+      QtMod("qtlottie", v => btw(v, V(5,13,0), V(6,0,0)) || gte(v, V(6,1,0))),
+      QtMod("qtmultimedia", v => gte(v, V(6,2,0))),
+      QtMod("qtnetworkauth", v => lt(v, V(6,0,0)) || gte(v, V(6,1,0))),
+      QtMod("qtpdf", v => gte(v, V(6,3,0))),
+      QtMod("qtpositioning", v => gte(v, V(6,2,0))),
+      QtMod("qtpurchasing", v => lt(v, V(6,0,0))),
+      QtMod("qtquick3d", v => gte(v, V(5,14,0))),
+      QtMod("qtquick3dphysics", v => gte(v, V(6,4,0))),
+      QtMod("qtquickeffectmaker", v => gte(v, V(6,5,0))),
+      QtMod("qtquicktimeline", v => gte(v, V(5,14,0))),
+      QtMod("qtremoteobjects", v => gte(v, V(6,2,0))),
+      QtMod("qtscript", v => lt(v, V(6,0,0))),
+      QtMod("qtscxml", v => gte(v, V(6,1,0))),
+      QtMod("qtsensors", v => gte(v, V(6,2,0))),
+      QtMod("qtserialbus", v => gte(v, V(6,2,0))),
+      QtMod("qtserialport", v => gte(v, V(6,2,0))),
+      QtMod("qtshadertools", v => gte(v, V(6,0,0))),
+      QtMod("qtspeech", v => gte(v, V(6,4,0))),
+      QtMod("qtvirtualkeyboard", v => lt(v, V(6,0,0)) || gte(v, V(6,1,0))),
+      QtMod("qtwaylandcompositor", v => gte(v, V(5,14,0))),
+      QtMod("qtwebchannel", v => gte(v, V(6,2,0))),
+      QtMod("qtwebengine", v => lt(v, V(6,0,0)) || gte(v, V(6,2,0))),
+      QtMod("qtwebglplugin", v => lt(v, V(6,0,0))),
+      QtMod("qtwebsockets", v => gte(v, V(6,2,0))),
+      QtMod("qtwebview", v => gte(v, V(6,2,0))),
     ],
     "linux.desktop.linux_gcc_64": [
-      QtExtension("qtpdf", v => gte(v, V(6,8,0))),
-      QtExtension("qtwebengine", v => gte(v, V(6,8,0))),
+      QtMod("qt3d", _v => true),
+      QtMod("qt5compat", _v => true),
+      QtMod("qtcharts", _v => true),
+      QtMod("qtconnectivity", _v => true),
+      QtMod("qtdatavis3d", _v => true),
+      QtMod("qtgraphs", _v => true),
+      QtMod("qtgrpc", _v => true),
+      QtMod("qthttpserver", _v => true),
+      QtMod("qtimageformats", _v => true),
+      QtMod("qtlanguageserver", _v => true),
+      QtMod("qtlocation", _v => true),
+      QtMod("qtlottie", _v => true),
+      QtMod("qtmultimedia", _v => true),
+      QtMod("qtnetworkauth", _v => true),
+      QtMod("qtpdf", v => lt(v, V(6,8,0))),
+      QtMod("qtpositioning", _v => true),
+      QtMod("qtquick3d", _v => true),
+      QtMod("qtquick3dphysics", _v => true),
+      QtMod("qtquickeffectmaker", _v => true),
+      QtMod("qtquicktimeline", _v => true),
+      QtMod("qtremoteobjects", _v => true),
+      QtMod("qtscxml", _v => true),
+      QtMod("qtsensors", _v => true),
+      QtMod("qtserialbus", _v => true),
+      QtMod("qtserialport", _v => true),
+      QtMod("qtshadertools", _v => true),
+      QtMod("qtspeech", _v => true),
+      QtMod("qtvirtualkeyboard", _v => true),
+      QtMod("qtwaylandcompositor", _v => true),
+      QtMod("qtwebchannel", _v => true),
+      QtMod("qtwebengine", v => lt(v, V(6,8,0))),
+      QtMod("qtwebsockets", _v => true),
+      QtMod("qtwebview", _v => true),
     ],
     "linux_arm64.desktop.linux_gcc_arm64": [
-      QtExtension("qtpdf", v => gte(v, V(6,8,0))),
-      QtExtension("qtwebengine", v => gte(v, V(6,8,0))),
+      QtMod("qt3d", _v => true),
+      QtMod("qt5compat", _v => true),
+      QtMod("qtcharts", _v => true),
+      QtMod("qtconnectivity", _v => true),
+      QtMod("qtdatavis3d", _v => true),
+      QtMod("qtgraphs", _v => true),
+      QtMod("qtgrpc", _v => true),
+      QtMod("qthttpserver", _v => true),
+      QtMod("qtimageformats", _v => true),
+      QtMod("qtlanguageserver", _v => true),
+      QtMod("qtlocation", _v => true),
+      QtMod("qtlottie", _v => true),
+      QtMod("qtmultimedia", _v => true),
+      QtMod("qtnetworkauth", _v => true),
+      QtMod("qtpdf", v => lt(v, V(6,8,0))),
+      QtMod("qtpositioning", _v => true),
+      QtMod("qtquick3d", _v => true),
+      QtMod("qtquick3dphysics", _v => true),
+      QtMod("qtquickeffectmaker", _v => true),
+      QtMod("qtquicktimeline", _v => true),
+      QtMod("qtremoteobjects", _v => true),
+      QtMod("qtscxml", _v => true),
+      QtMod("qtsensors", _v => true),
+      QtMod("qtserialbus", _v => true),
+      QtMod("qtserialport", _v => true),
+      QtMod("qtshadertools", _v => true),
+      QtMod("qtspeech", _v => true),
+      QtMod("qtvirtualkeyboard", _v => true),
+      QtMod("qtwaylandcompositor", _v => true),
+      QtMod("qtwebchannel", _v => true),
+      QtMod("qtwebengine", v => lt(v, V(6,8,0))),
+      QtMod("qtwebsockets", _v => true),
+      QtMod("qtwebview", _v => true),
+    ],
+    "mac.desktop.clang_64": [
+      QtMod("qt3d", v => gte(v, V(6,1,0))),
+      QtMod("qt5compat", v => gte(v, V(6,0,0))),
+      QtMod("qtcharts", v => lt(v, V(6,0,0)) || gte(v, V(6,1,0))),
+      QtMod("qtconnectivity", v => gte(v, V(6,2,0))),
+      QtMod("qtdatavis3d", v => lt(v, V(6,0,0)) || gte(v, V(6,1,0))),
+      QtMod("qtgraphs", v => gte(v, V(6,6,0))),
+      QtMod("qtgrpc", v => gte(v, V(6,5,0))),
+      QtMod("qthttpserver", v => gte(v, V(6,4,0))),
+      QtMod("qtimageformats", v => gte(v, V(6,1,0))),
+      QtMod("qtlanguageserver", v => gte(v, V(6,3,0))),
+      QtMod("qtlocation", v => gte(v, V(6,5,0))),
+      QtMod("qtlottie", v => btw(v, V(5,13,0), V(6,0,0)) || gte(v, V(6,1,0))),
+      QtMod("qtmultimedia", v => gte(v, V(6,2,0))),
+      QtMod("qtnetworkauth", v => lt(v, V(6,0,0)) || gte(v, V(6,1,0))),
+      QtMod("qtpdf", v => btw(v, V(6,3,0), V(6,8,0))),
+      QtMod("qtpositioning", v => gte(v, V(6,2,0))),
+      QtMod("qtpurchasing", v => lt(v, V(6,0,0))),
+      QtMod("qtquick3d", v => gte(v, V(5,14,0))),
+      QtMod("qtquick3dphysics", v => gte(v, V(6,4,0))),
+      QtMod("qtquickeffectmaker", v => gte(v, V(6,5,0))),
+      QtMod("qtquicktimeline", v => gte(v, V(5,14,0))),
+      QtMod("qtremoteobjects", v => gte(v, V(6,2,0))),
+      QtMod("qtscript", v => lt(v, V(6,0,0))),
+      QtMod("qtscxml", v => gte(v, V(6,1,0))),
+      QtMod("qtsensors", v => gte(v, V(6,2,0))),
+      QtMod("qtserialbus", v => gte(v, V(6,2,0))),
+      QtMod("qtserialport", v => gte(v, V(6,2,0))),
+      QtMod("qtshadertools", v => gte(v, V(6,0,0))),
+      QtMod("qtspeech", v => gte(v, V(6,4,0))),
+      QtMod("qtvirtualkeyboard", v => lt(v, V(6,0,0)) || gte(v, V(6,1,0))),
+      QtMod("qtwebchannel", v => gte(v, V(6,2,0))),
+      QtMod("qtwebengine", v => lt(v, V(6,0,0)) || btw(v, V(6,2,0), V(6,8,0))),
+      QtMod("qtwebglplugin", v => lt(v, V(6,0,0))),
+      QtMod("qtwebsockets", v => gte(v, V(6,2,0))),
+      QtMod("qtwebview", v => gte(v, V(6,2,0))),
+    ],
+    "wasm.wasm_32": [
+      QtMod("qt5compat", v => gte(v, V(6,2,0))),
+      QtMod("qtcharts", _v => true),
+      QtMod("qtdatavis3d", _v => true),
+      QtMod("qthttpserver", v => gte(v, V(6,4,0))),
+      QtMod("qtimageformats", v => gte(v, V(6,2,0))),
+      QtMod("qtlottie", _v => true),
+      QtMod("qtmultimedia", v => gte(v, V(6,2,0))),
+      QtMod("qtnetworkauth", v => lt(v, V(6,0,0))),
+      QtMod("qtpurchasing", v => lt(v, V(6,0,0))),
+      QtMod("qtquick3d", v => gte(v, V(6,2,0))),
+      QtMod("qtquick3dphysics", v => gte(v, V(6,4,0))),
+      QtMod("qtquicktimeline", v => gte(v, V(5,14,0))),
+      QtMod("qtscript", v => lt(v, V(6,0,0))),
+      QtMod("qtscxml", v => gte(v, V(6,2,0))),
+      QtMod("qtshadertools", v => gte(v, V(6,2,0))),
+      QtMod("qtspeech", v => gte(v, V(6,4,0))),
+      QtMod("qtvirtualkeyboard", _v => true),
+      QtMod("qtwebchannel", v => gte(v, V(6,2,0))),
+      QtMod("qtwebglplugin", v => lt(v, V(6,0,0))),
+      QtMod("qtwebsockets", v => gte(v, V(6,2,0))),
+    ],
+    "wasm.wasm_singlethread": [
+      QtMod("qt5compat", _v => true),
+      QtMod("qtcharts", _v => true),
+      QtMod("qtdatavis3d", _v => true),
+      QtMod("qtgraphs", v => gte(v, V(6,6,0))),
+      QtMod("qtgrpc", _v => true),
+      QtMod("qthttpserver", _v => true),
+      QtMod("qtimageformats", _v => true),
+      QtMod("qtlottie", _v => true),
+      QtMod("qtmultimedia", v => lt(v, V(6,10,0))),
+      QtMod("qtquick3d", _v => true),
+      QtMod("qtquick3dphysics", _v => true),
+      QtMod("qtquicktimeline", _v => true),
+      QtMod("qtscxml", _v => true),
+      QtMod("qtshadertools", _v => true),
+      QtMod("qtspeech", v => lt(v, V(6,10,0))),
+      QtMod("qtvirtualkeyboard", _v => true),
+      QtMod("qtwebchannel", _v => true),
+      QtMod("qtwebsockets", _v => true),
+      QtMod("qtwebview", v => gte(v, V(6,6,2))),
+    ],
+    "wasm.wasm_multithread": [
+      QtMod("qt5compat", _v => true),
+      QtMod("qtcharts", _v => true),
+      QtMod("qtdatavis3d", _v => true),
+      QtMod("qtgraphs", v => gte(v, V(6,6,0))),
+      QtMod("qtgrpc", _v => true),
+      QtMod("qthttpserver", _v => true),
+      QtMod("qtimageformats", _v => true),
+      QtMod("qtlottie", _v => true),
+      QtMod("qtmultimedia", _v => true),
+      QtMod("qtquick3d", _v => true),
+      QtMod("qtquick3dphysics", _v => true),
+      QtMod("qtquicktimeline", _v => true),
+      QtMod("qtscxml", _v => true),
+      QtMod("qtshadertools", _v => true),
+      QtMod("qtspeech", _v => true),
+      QtMod("qtvirtualkeyboard", _v => true),
+      QtMod("qtwebchannel", _v => true),
+      QtMod("qtwebsockets", _v => true),
+      QtMod("qtwebview", v => gte(v, V(6,6,2))),
     ],
     "android.android_arm64_v8a": [
-      QtExtension("qtpdf", v => gte(v, V(6,8,0))),
+      QtMod("qt3d", v => gte(v, V(6,1,0))),
+      QtMod("qt5compat", v => gte(v, V(6,0,0))),
+      QtMod("qtcharts", v => lt(v, V(6,0,0)) || gte(v, V(6,1,0))),
+      QtMod("qtconnectivity", v => gte(v, V(6,2,0))),
+      QtMod("qtdatavis3d", v => lt(v, V(6,0,0)) || gte(v, V(6,1,0))),
+      QtMod("qtgraphs", v => gte(v, V(6,6,0))),
+      QtMod("qtgrpc", v => gte(v, V(6,5,0))),
+      QtMod("qthttpserver", v => gte(v, V(6,4,0))),
+      QtMod("qtimageformats", v => gte(v, V(6,1,0))),
+      QtMod("qtlocation", v => gte(v, V(6,5,0))),
+      QtMod("qtlottie", v => btw(v, V(5,13,0), V(6,0,0)) || gte(v, V(6,1,0))),
+      QtMod("qtmultimedia", v => gte(v, V(6,2,0))),
+      QtMod("qtnetworkauth", v => lt(v, V(6,0,0)) || gte(v, V(6,1,0))),
+      QtMod("qtpdf", v => btw(v, V(6,7,0), V(6,8,0))),
+      QtMod("qtpositioning", v => gte(v, V(6,2,0))),
+      QtMod("qtpurchasing", v => lt(v, V(6,0,0))),
+      QtMod("qtquick3d", v => gte(v, V(6,0,0))),
+      QtMod("qtquick3dphysics", v => gte(v, V(6,4,0))),
+      QtMod("qtquicktimeline", v => gte(v, V(6,0,0))),
+      QtMod("qtremoteobjects", v => gte(v, V(6,2,0))),
+      QtMod("qtscript", v => lt(v, V(6,0,0))),
+      QtMod("qtscxml", v => gte(v, V(6,1,0))),
+      QtMod("qtsensors", v => gte(v, V(6,2,0))),
+      QtMod("qtserialbus", v => gte(v, V(6,2,0))),
+      QtMod("qtserialport", v => gte(v, V(6,2,0))),
+      QtMod("qtshadertools", v => gte(v, V(6,0,0))),
+      QtMod("qtspeech", v => gte(v, V(6,4,0))),
+      QtMod("qtvirtualkeyboard", v => gte(v, V(6,1,0))),
+      QtMod("qtwebchannel", v => gte(v, V(6,2,0))),
+      QtMod("qtwebsockets", v => gte(v, V(6,2,0))),
+      QtMod("qtwebview", v => gte(v, V(6,2,0))),
     ],
     "android.android_armv7": [
-      QtExtension("qtpdf", v => gte(v, V(6,8,0))),
+      QtMod("qt3d", v => gte(v, V(6,1,0))),
+      QtMod("qt5compat", v => gte(v, V(6,0,0))),
+      QtMod("qtcharts", v => lt(v, V(6,0,0)) || gte(v, V(6,1,0))),
+      QtMod("qtconnectivity", v => gte(v, V(6,2,0))),
+      QtMod("qtdatavis3d", v => lt(v, V(6,0,0)) || gte(v, V(6,1,0))),
+      QtMod("qtgraphs", v => gte(v, V(6,6,0))),
+      QtMod("qtgrpc", v => gte(v, V(6,5,0))),
+      QtMod("qthttpserver", v => gte(v, V(6,4,0))),
+      QtMod("qtimageformats", v => gte(v, V(6,1,0))),
+      QtMod("qtlocation", v => gte(v, V(6,5,0))),
+      QtMod("qtlottie", v => btw(v, V(5,13,0), V(6,0,0)) || gte(v, V(6,1,0))),
+      QtMod("qtmultimedia", v => gte(v, V(6,2,0))),
+      QtMod("qtnetworkauth", v => lt(v, V(6,0,0)) || gte(v, V(6,1,0))),
+      QtMod("qtpdf", v => btw(v, V(6,7,0), V(6,8,0))),
+      QtMod("qtpositioning", v => gte(v, V(6,2,0))),
+      QtMod("qtpurchasing", v => lt(v, V(6,0,0))),
+      QtMod("qtquick3d", v => gte(v, V(6,0,0))),
+      QtMod("qtquick3dphysics", v => gte(v, V(6,4,0))),
+      QtMod("qtquicktimeline", v => gte(v, V(6,0,0))),
+      QtMod("qtremoteobjects", v => gte(v, V(6,2,0))),
+      QtMod("qtscript", v => lt(v, V(6,0,0))),
+      QtMod("qtscxml", v => gte(v, V(6,1,0))),
+      QtMod("qtsensors", v => gte(v, V(6,2,0))),
+      QtMod("qtserialbus", v => gte(v, V(6,2,0))),
+      QtMod("qtserialport", v => gte(v, V(6,2,0))),
+      QtMod("qtshadertools", v => gte(v, V(6,0,0))),
+      QtMod("qtspeech", v => gte(v, V(6,4,0))),
+      QtMod("qtvirtualkeyboard", v => gte(v, V(6,1,0))),
+      QtMod("qtwebchannel", v => gte(v, V(6,2,0))),
+      QtMod("qtwebsockets", v => gte(v, V(6,2,0))),
+      QtMod("qtwebview", v => gte(v, V(6,2,0))),
     ],
     "android.android_x86": [
-      QtExtension("qtpdf", v => gte(v, V(6,8,0))),
+      QtMod("qt3d", v => gte(v, V(6,1,0))),
+      QtMod("qt5compat", v => gte(v, V(6,0,0))),
+      QtMod("qtcharts", v => lt(v, V(6,0,0)) || gte(v, V(6,1,0))),
+      QtMod("qtconnectivity", v => gte(v, V(6,2,0))),
+      QtMod("qtdatavis3d", v => lt(v, V(6,0,0)) || gte(v, V(6,1,0))),
+      QtMod("qtgraphs", v => gte(v, V(6,6,0))),
+      QtMod("qtgrpc", v => gte(v, V(6,5,0))),
+      QtMod("qthttpserver", v => gte(v, V(6,4,0))),
+      QtMod("qtimageformats", v => gte(v, V(6,1,0))),
+      QtMod("qtlocation", v => gte(v, V(6,5,0))),
+      QtMod("qtlottie", v => btw(v, V(5,13,0), V(6,0,0)) || gte(v, V(6,1,0))),
+      QtMod("qtmultimedia", v => gte(v, V(6,2,0))),
+      QtMod("qtnetworkauth", v => lt(v, V(6,0,0)) || gte(v, V(6,1,0))),
+      QtMod("qtpdf", v => btw(v, V(6,7,0), V(6,8,0))),
+      QtMod("qtpositioning", v => gte(v, V(6,2,0))),
+      QtMod("qtpurchasing", v => lt(v, V(6,0,0))),
+      QtMod("qtquick3d", v => gte(v, V(6,0,0))),
+      QtMod("qtquick3dphysics", v => gte(v, V(6,4,0))),
+      QtMod("qtquicktimeline", v => gte(v, V(6,0,0))),
+      QtMod("qtremoteobjects", v => gte(v, V(6,2,0))),
+      QtMod("qtscript", v => lt(v, V(6,0,0))),
+      QtMod("qtscxml", v => gte(v, V(6,1,0))),
+      QtMod("qtsensors", v => gte(v, V(6,2,0))),
+      QtMod("qtserialbus", v => gte(v, V(6,2,0))),
+      QtMod("qtserialport", v => gte(v, V(6,2,0))),
+      QtMod("qtshadertools", v => gte(v, V(6,0,0))),
+      QtMod("qtspeech", v => gte(v, V(6,4,0))),
+      QtMod("qtvirtualkeyboard", v => gte(v, V(6,1,0))),
+      QtMod("qtwebchannel", v => gte(v, V(6,2,0))),
+      QtMod("qtwebsockets", v => gte(v, V(6,2,0))),
+      QtMod("qtwebview", v => gte(v, V(6,2,0))),
     ],
     "android.android_x86_64": [
-      QtExtension("qtpdf", v => gte(v, V(6,8,0))),
+      QtMod("qt3d", v => gte(v, V(6,1,0))),
+      QtMod("qt5compat", v => gte(v, V(6,0,0))),
+      QtMod("qtcharts", v => lt(v, V(6,0,0)) || gte(v, V(6,1,0))),
+      QtMod("qtconnectivity", v => gte(v, V(6,2,0))),
+      QtMod("qtdatavis3d", v => lt(v, V(6,0,0)) || gte(v, V(6,1,0))),
+      QtMod("qtgraphs", v => gte(v, V(6,6,0))),
+      QtMod("qtgrpc", v => gte(v, V(6,5,0))),
+      QtMod("qthttpserver", v => gte(v, V(6,4,0))),
+      QtMod("qtimageformats", v => gte(v, V(6,1,0))),
+      QtMod("qtlocation", v => gte(v, V(6,5,0))),
+      QtMod("qtlottie", v => lt(v, V(6,0,0)) || gte(v, V(6,1,0))),
+      QtMod("qtmultimedia", v => gte(v, V(6,2,0))),
+      QtMod("qtnetworkauth", v => lt(v, V(6,0,0)) || gte(v, V(6,1,0))),
+      QtMod("qtpdf", v => btw(v, V(6,7,0), V(6,8,0))),
+      QtMod("qtpositioning", v => gte(v, V(6,2,0))),
+      QtMod("qtpurchasing", v => lt(v, V(6,0,0))),
+      QtMod("qtquick3d", v => gte(v, V(6,0,0))),
+      QtMod("qtquick3dphysics", v => gte(v, V(6,4,0))),
+      QtMod("qtquicktimeline", v => gte(v, V(6,0,0))),
+      QtMod("qtremoteobjects", v => gte(v, V(6,2,0))),
+      QtMod("qtscript", v => lt(v, V(6,0,0))),
+      QtMod("qtscxml", v => gte(v, V(6,1,0))),
+      QtMod("qtsensors", v => gte(v, V(6,2,0))),
+      QtMod("qtserialbus", v => gte(v, V(6,2,0))),
+      QtMod("qtserialport", v => gte(v, V(6,2,0))),
+      QtMod("qtshadertools", v => gte(v, V(6,0,0))),
+      QtMod("qtspeech", v => gte(v, V(6,4,0))),
+      QtMod("qtvirtualkeyboard", v => gte(v, V(6,1,0))),
+      QtMod("qtwebchannel", v => gte(v, V(6,2,0))),
+      QtMod("qtwebsockets", v => gte(v, V(6,2,0))),
+      QtMod("qtwebview", v => gte(v, V(6,2,0))),
+    ],
+    "android.android": [
+      QtMod("qtcharts", _v => true),
+      QtMod("qtdatavis3d", _v => true),
+      QtMod("qtlottie", _v => true),
+      QtMod("qtnetworkauth", _v => true),
+      QtMod("qtpurchasing", _v => true),
+      QtMod("qtquick3d", v => gte(v, V(5,15,0))),
+      QtMod("qtquicktimeline", _v => true),
+      QtMod("qtscript", _v => true),
     ],
     "ios.ios": [
-      QtExtension("qtpdf", v => gte(v, V(6,8,0))),
+      QtMod("qt3d", v => gte(v, V(6,1,0))),
+      QtMod("qt5compat", v => gte(v, V(6,0,0))),
+      QtMod("qtcharts", v => lt(v, V(6,0,0)) || gte(v, V(6,1,0))),
+      QtMod("qtconnectivity", v => gte(v, V(6,2,0))),
+      QtMod("qtdatavis3d", v => lt(v, V(6,0,0)) || gte(v, V(6,1,0))),
+      QtMod("qtgraphs", v => gte(v, V(6,6,0))),
+      QtMod("qtgrpc", v => gte(v, V(6,5,0))),
+      QtMod("qthttpserver", v => gte(v, V(6,4,0))),
+      QtMod("qtimageformats", v => gte(v, V(6,1,0))),
+      QtMod("qtlocation", v => gte(v, V(6,5,0))),
+      QtMod("qtlottie", v => btw(v, V(5,13,0), V(6,0,0)) || gte(v, V(6,1,0))),
+      QtMod("qtmultimedia", v => gte(v, V(6,2,0))),
+      QtMod("qtnetworkauth", v => lt(v, V(6,0,0)) || gte(v, V(6,1,0))),
+      QtMod("qtpdf", v => btw(v, V(6,3,0), V(6,8,0))),
+      QtMod("qtpositioning", v => gte(v, V(6,2,0))),
+      QtMod("qtpurchasing", v => lt(v, V(6,0,0))),
+      QtMod("qtquick3d", v => gte(v, V(6,0,0))),
+      QtMod("qtquick3dphysics", v => gte(v, V(6,4,0))),
+      QtMod("qtquicktimeline", v => gte(v, V(5,14,0))),
+      QtMod("qtremoteobjects", v => gte(v, V(6,2,0))),
+      QtMod("qtscript", v => lt(v, V(6,0,0))),
+      QtMod("qtscxml", v => gte(v, V(6,1,0))),
+      QtMod("qtsensors", v => gte(v, V(6,2,0))),
+      QtMod("qtserialbus", v => gte(v, V(6,2,0))),
+      QtMod("qtshadertools", v => gte(v, V(6,0,0))),
+      QtMod("qtspeech", v => gte(v, V(6,4,0))),
+      QtMod("qtvirtualkeyboard", v => gte(v, V(6,1,0))),
+      QtMod("qtwebchannel", v => gte(v, V(6,2,0))),
+      QtMod("qtwebsockets", v => gte(v, V(6,2,0))),
+      QtMod("qtwebview", v => gte(v, V(6,2,1))),
+    ],
+  };
+
+  const QtExt = (Name, IsAvailable) => ({ Name, IsAvailable });
+  const ExtensionsByPlatformAndArch = {
+    "windows.desktop.win64_msvc2022_64": [
+      QtExt("qtpdf", v => gte(v, V(6,8,0))),
+      QtExt("qtwebengine", v => gte(v, V(6,8,0))),
+    ],
+    "windows.desktop.win64_msvc2022_arm64_cross_compiled": [
+      QtExt("qtpdf", v => gte(v, V(6,9,2))),
+      QtExt("qtwebengine", v => gte(v, V(6,9,2))),
+    ],
+    "windows.desktop.win64_mingw": [
+      QtExt("qtpdf", v => gte(v, V(6,8,0))),
+    ],
+    "windows.desktop.win64_llvm_mingw": [
+      QtExt("qtpdf", v => gte(v, V(6,8,0))),
+    ],
+    "windows_arm64.desktop.win64_msvc2022_arm64": [
+      QtExt("qtpdf", v => gte(v, V(6,9,2))),
+      QtExt("qtwebengine", v => gte(v, V(6,10,0))),
+    ],
+    "mac.desktop.clang_64": [
+      QtExt("qtpdf", v => gte(v, V(6,8,0))),
+      QtExt("qtwebengine", v => gte(v, V(6,8,0))),
+    ],
+    "linux.desktop.linux_gcc_64": [
+      QtExt("qtpdf", v => gte(v, V(6,8,0))),
+      QtExt("qtwebengine", v => gte(v, V(6,8,0))),
+    ],
+    "linux_arm64.desktop.linux_gcc_arm64": [
+      QtExt("qtpdf", v => gte(v, V(6,8,0))),
+      QtExt("qtwebengine", v => gte(v, V(6,8,0))),
+    ],
+    "android.android_arm64_v8a": [
+      QtExt("qtpdf", v => gte(v, V(6,8,0))),
+    ],
+    "android.android_armv7": [
+      QtExt("qtpdf", v => gte(v, V(6,8,0))),
+    ],
+    "android.android_x86": [
+      QtExt("qtpdf", v => gte(v, V(6,8,0))),
+    ],
+    "android.android_x86_64": [
+      QtExt("qtpdf", v => gte(v, V(6,8,0))),
+    ],
+    "ios.ios": [
+      QtExt("qtpdf", v => gte(v, V(6,8,0))),
     ],
   };
 
@@ -421,6 +1158,11 @@
   function getRelevantArches(host, target, version) {
     const arches = ArchesByPlatform[makePlatform(host, target)] || [];
     return arches.filter(a => a.IsAvailable(version)).map(a => a.Name);
+  }
+
+  function getRelevantModules(host, target, version, arch) {
+    const modules = ModulesByPlatformAndArch[`${makePlatform(host, target)}.${arch}`] || [];
+    return modules.filter(m => m.IsAvailable(version)).map(m => m.Name);
   }
 
   function getRelevantExtensions(host, target, version, arch) {
@@ -495,19 +1237,6 @@
     return `https://download.qt.io/online/qtsdkrepository/${actualHost}/${actualTarget}/${actualDir}/`;
   }
 
-  function parseModulesFromUpdate(updateDoc, arch) {
-    const modules = [];
-    for (const pkg of updateDoc.getElementsByTagName("PackageUpdate")) {
-      const nameEl = Array.from(pkg.children).find(el => el.tagName === "Name");
-      const nameSegments = nameEl.textContent.trim().split(".");
-      if (nameSegments.length < 5) continue;
-      if (nameSegments[nameSegments.length - 1] !== arch) continue;
-      const startSegment = nameSegments.length >= 6 && nameSegments[3] === "addons" ? 4 : 3;
-      modules.push(nameSegments.slice(startSegment, -1).join("."));
-    }
-    return modules;
-  }
-
   // -----------------------------
   // Formatting helpers
   // -----------------------------
@@ -556,14 +1285,6 @@
     extensionsStatus: document.getElementById("extensionsStatus"),
     extensionsList: document.getElementById("extensionsList"),
   };
-
-  const updateDocCache = {
-    url: "",
-    document: null,
-    promise: null,
-    abortController: null,
-  };
-  let modulesLoadRequestId = 0;
 
   function setOptions(select, items, placeholder) {
     select.innerHTML = "";
@@ -618,12 +1339,6 @@
       listEl: els.modulesList,
       statusEl: els.modulesStatus,
       forceDisable,
-      onReset: () => {
-        modulesLoadRequestId += 1;
-        if (updateDocCache.abortController) {
-          updateDocCache.abortController.abort();
-        }
-      },
     });
   }
 
@@ -636,8 +1351,7 @@
     });
   }
 
-  function resetAddonUi({ installCheckbox, listEl, statusEl, forceDisable = false, onReset = null }) {
-    if (onReset) onReset();
+  function resetAddonUi({ installCheckbox, listEl, statusEl, forceDisable = false }) {
     if (forceDisable) {
       installCheckbox.checked = false;
       installCheckbox.disabled = true;
@@ -683,46 +1397,7 @@
     listEl.hidden = values.length === 0;
   }
 
-  async function getCachedUpdateDoc(updatesXmlUrl) {
-    if (updateDocCache.url === updatesXmlUrl && updateDocCache.document) {
-      return updateDocCache.document;
-    }
-    if (updateDocCache.url === updatesXmlUrl && updateDocCache.promise) {
-      return updateDocCache.promise;
-    }
-
-    if (updateDocCache.abortController) {
-      updateDocCache.abortController.abort();
-    }
-
-    const abortController = new AbortController();
-    const promise = (async () => {
-      const response = await fetch(updatesXmlUrl, { signal: abortController.signal });
-      if (!response.ok) {
-        throw new Error(`Failed to fetch Updates.xml (${response.status})`);
-      }
-      const xmlText = await response.text();
-      const xmlDoc = new DOMParser().parseFromString(xmlText, "application/xml");
-      updateDocCache.document = xmlDoc;
-      return xmlDoc;
-    })();
-
-    updateDocCache.url = updatesXmlUrl;
-    updateDocCache.document = null;
-    updateDocCache.promise = promise;
-    updateDocCache.abortController = abortController;
-
-    try {
-      return await promise;
-    } finally {
-      if (updateDocCache.promise === promise) {
-        updateDocCache.promise = null;
-        updateDocCache.abortController = null;
-      }
-    }
-  }
-
-  async function loadModulesForSelection() {
+  function loadModulesForSelection() {
     if (!hasFullSelection() || !els.installModules.checked) {
       resetModulesUi(false);
       return;
@@ -732,25 +1407,9 @@
     const target = els.target.value;
     const version = parseV(els.version.value);
     const arch = els.arch.value;
-    const baseUrl = getUpdateDirectoryUrl(host, target, version, arch);
-    const updatesXmlUrl = `${baseUrl}Updates.xml`;
-    const requestId = ++modulesLoadRequestId;
-
-    els.modulesList.hidden = true;
-    setModulesStatus("Loading modules…");
-
-    try {
-      const updateDoc = await getCachedUpdateDoc(updatesXmlUrl);
-      if (requestId !== modulesLoadRequestId) return;
-      const modules = parseModulesFromUpdate(updateDoc, arch);
-      renderModulesList(modules);
-      setModulesStatus(modules.length === 0 ? "No modules found for this selection." : "");
-    } catch (error) {
-      if (requestId !== modulesLoadRequestId) return;
-      if (error?.name === "AbortError") return;
-      resetModulesUi(false);
-      setModulesStatus("Failed to load modules.");
-    }
+    const modules = getRelevantModules(host, target, version, arch);
+    renderModulesList(modules);
+    setModulesStatus(modules.length === 0 ? "No modules found for this selection." : "");
   }
 
   function loadExtensionsForSelection() {
@@ -887,9 +1546,9 @@
     updateOutputs();
   });
 
-  els.installModules.addEventListener("change", async () => {
+  els.installModules.addEventListener("change", () => {
     if (els.installModules.checked) {
-      await loadModulesForSelection();
+      loadModulesForSelection();
     } else {
       resetModulesUi(false);
     }
