@@ -1576,54 +1576,27 @@
     updateOutputs();
   });
 
-  els.copy.addEventListener("click", async () => {
-    const text = els.cmd.textContent || "";
-    try {
-      await navigator.clipboard.writeText(text);
-      const old = els.copy.textContent;
-      els.copy.textContent = "Copied!";
-      setTimeout(() => (els.copy.textContent = old), 900);
-    } catch {
-      // Fallback: select text (best-effort)
-      const r = document.createRange();
-      r.selectNodeContents(els.cmd);
-      const sel = window.getSelection();
-      sel.removeAllRanges();
-      sel.addRange(r);
-    }
-  });
+  function bindCopyButton(buttonEl, sourceEl) {
+    buttonEl.addEventListener("click", async () => {
+      const text = sourceEl.textContent || "";
+      try {
+        await navigator.clipboard.writeText(text);
+        const old = buttonEl.textContent;
+        buttonEl.textContent = "Copied!";
+        setTimeout(() => (buttonEl.textContent = old), 900);
+      } catch {
+        const r = document.createRange();
+        r.selectNodeContents(sourceEl);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(r);
+      }
+    });
+  }
 
-  els.copyAction.addEventListener("click", async () => {
-    const text = (els.actionYaml.textContent || "").trimEnd();
-    try {
-      await navigator.clipboard.writeText(text);
-      const old = els.copyAction.textContent;
-      els.copyAction.textContent = "Copied!";
-      setTimeout(() => (els.copyAction.textContent = old), 900);
-    } catch {
-      const r = document.createRange();
-      r.selectNodeContents(els.actionYaml);
-      const sel = window.getSelection();
-      sel.removeAllRanges();
-      sel.addRange(r);
-    }
-  });
-
-  els.copyMirror.addEventListener("click", async () => {
-    const text = (els.mirrorUrl.textContent || "").trim();
-    try {
-      await navigator.clipboard.writeText(text);
-      const old = els.copyMirror.textContent;
-      els.copyMirror.textContent = "Copied!";
-      setTimeout(() => (els.copyMirror.textContent = old), 900);
-    } catch {
-      const r = document.createRange();
-      r.selectNodeContents(els.mirrorUrl);
-      const sel = window.getSelection();
-      sel.removeAllRanges();
-      sel.addRange(r);
-    }
-  });
+  bindCopyButton(els.copy, els.cmd);
+  bindCopyButton(els.copyAction, els.actionYaml);
+  bindCopyButton(els.copyMirror, els.mirrorUrl);
 
   els.openMirror.addEventListener("click", () => {
     const url = (els.mirrorUrl.textContent || "").trim();
