@@ -55,6 +55,9 @@
       gap: 12px;
     }
     label { display: block; font-size: 12px; opacity: .85; margin-bottom: 6px; }
+    .grid > div:has(select:disabled) > label {
+      opacity: .3;
+    }
     select {
       width: 100%;
       padding: 6px 6px;
@@ -122,6 +125,10 @@
       opacity: .95;
       margin: 0;
     }
+    .addons-toggle:has(input:disabled) > span {
+      opacity: .3;
+    }
+    input:disabled { opacity: .55; }
     .addons-list {
       max-height: 192px;
       overflow-y: auto;
