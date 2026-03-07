@@ -167,7 +167,7 @@
 <body>
   <div class="card">
     <div class="title-row">
-      <h1>naqt Command Builder</h1>
+      <h1 id="builderTitle">naqt Command Builder</h1>
       <a class="repo-link" href="https://github.com/jdpurcell/naqt-command-builder/" target="_blank" rel="noopener noreferrer">GitHub Repo ↗</a>
     </div>
 
@@ -211,7 +211,7 @@
 
     <div class="out">
       <div class="row">
-        <div class="hint">Command for <a href="https://github.com/jdpurcell/naqt">naqt</a>:</div>
+        <div class="hint">Command for <a id="commandToolLink" href="https://github.com/jdpurcell/naqt">naqt</a>:</div>
         <button id="copy" disabled>Copy</button>
       </div>
       <div id="cmd" class="cmd"></div>
@@ -219,7 +219,7 @@
 
     <div class="out">
       <div class="row">
-        <div class="hint">Script for <a href="https://github.com/jdpurcell/install-qt-action">install-qt-action</a>:</div>
+        <div class="hint">Script for <a id="actionRepoLink" href="https://github.com/jdpurcell/install-qt-action">install-qt-action</a>:</div>
         <button id="copyAction" disabled>Copy</button>
       </div>
       <div id="actionYaml" class="cmd"></div>
@@ -239,6 +239,9 @@
 
 <script>
 (() => {
+  const AQT_COMPAT_TOKEN = "__AQT_COMPAT__";
+  const AqtCompat = AQT_COMPAT_TOKEN === "true";
+
   // -----------------------------
   // Data
   // -----------------------------
@@ -821,43 +824,68 @@
     return false;
   }
 
+  function getOutputTarget(target, version) {
+    return AqtCompat && target === "wasm" && lt(version, V(6,7,0)) ? "desktop" : target;
+  }
+
+  function getOutputHost(host, target, version) {
+    return usesAllOsHost(target, version) ? "all_os" : host;
+  }
+
+  function getOutputModules(modules, extensions) {
+    return AqtCompat ? [...modules, ...extensions] : modules;
+  }
+
+  function getOutputExtensions(extensions) {
+    return AqtCompat ? [] : extensions;
+  }
+
   function getInstallCommand(host, target, version, arch, modules = [], extensions = []) {
-    const targetHost = usesAllOsHost(target, version) ? "all_os" : host;
+    const outputHost = getOutputHost(host, target, version);
+    const outputTarget = getOutputTarget(target, version);
+    const outputModules = getOutputModules(modules, extensions);
+    const outputExtensions = getOutputExtensions(extensions);
     const isCrossCompile =
       target !== "desktop" ||
       arch === "win64_msvc2019_arm64" ||
       arch.endsWith("_cross_compiled");
     const extraArgs = [];
-    if (modules.length > 0) extraArgs.push("--modules", ...modules);
-    if (extensions.length > 0) extraArgs.push("--extensions", ...extensions);
+    if (outputModules.length > 0) extraArgs.push("--modules", ...outputModules);
+    if (outputExtensions.length > 0) extraArgs.push("--extensions", ...outputExtensions);
     if (isCrossCompile) extraArgs.push("--autodesktop");
-    let command = `install-qt ${targetHost} ${target} ${vToString(version)} ${arch}`;
+    let command = `install-qt ${outputHost} ${outputTarget} ${vToString(version)} ${arch}`;
     if (extraArgs.length) command += " " + extraArgs.join(" ");
     return command;
   }
 
   function getInstallQtActionYaml(host, target, version, arch, modules = [], extensions = []) {
-    const targetHost = usesAllOsHost(target, version) ? "all_os" : host;
+    const outputHost = getOutputHost(host, target, version);
+    const outputTarget = getOutputTarget(target, version);
+    const outputModules = getOutputModules(modules, extensions);
+    const outputExtensions = getOutputExtensions(extensions);
+    const actionRef = AqtCompat ? "jurplel/install-qt-action@v4" : "jdpurcell/install-qt-action@v5";
     const lines = [
       "- name: Install Qt",
-      "  uses: jdpurcell/install-qt-action@v5",
+      `  uses: ${actionRef}`,
       "  with:",
       `    version: '${vToString(version)}'`,
-      `    host: '${targetHost}'`,
-      `    target: '${target}'`,
+      `    host: '${outputHost}'`,
+      `    target: '${outputTarget}'`,
       `    arch: '${arch}'`,
     ];
-    if (modules.length > 0) {
-      lines.push(`    modules: '${modules.join(" ")}'`);
+    if (outputModules.length > 0) {
+      lines.push(`    modules: '${outputModules.join(" ")}'`);
     }
-    if (extensions.length > 0) {
-      lines.push(`    extensions: '${extensions.join(" ")}'`);
+    if (outputExtensions.length > 0) {
+      lines.push(`    extensions: '${outputExtensions.join(" ")}'`);
     }
-    lines.push(
-      "    cache: true",
-      "    use-naqt: true",
-      "    setup-python: false",
-    );
+    lines.push("    cache: true");
+    if (!AqtCompat) {
+      lines.push(
+        "    use-naqt: true",
+        "    setup-python: false",
+      );
+    }
     return lines.join("\n");
   }
 
@@ -908,6 +936,9 @@
   // -----------------------------
 
   const els = {
+    builderTitle: document.getElementById("builderTitle"),
+    commandToolLink: document.getElementById("commandToolLink"),
+    actionRepoLink: document.getElementById("actionRepoLink"),
     host: document.getElementById("host"),
     target: document.getElementById("target"),
     version: document.getElementById("version"),
@@ -926,6 +957,15 @@
     extensionsStatus: document.getElementById("extensionsStatus"),
     extensionsList: document.getElementById("extensionsList"),
   };
+
+  function applyCompatModeUi() {
+    if (!AqtCompat) return;
+    document.title = "aqt Command Builder";
+    els.builderTitle.textContent = "aqt Command Builder";
+    els.commandToolLink.textContent = "aqt";
+    els.commandToolLink.href = "https://github.com/miurahr/aqtinstall";
+    els.actionRepoLink.href = "https://github.com/jurplel/install-qt-action";
+  }
 
   function setOptions(select, items, placeholder) {
     select.innerHTML = "";
@@ -1118,6 +1158,7 @@
   }
 
   resetTarget(); resetVersion(); resetArch();
+  applyCompatModeUi();
 
   setOptions(els.host, Hosts, "Choose…");
 

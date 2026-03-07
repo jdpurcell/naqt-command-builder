@@ -1,6 +1,6 @@
 # naqt Command Builder
 
-Small single-page tool for building inputs to [naqt](https://github.com/jdpurcell/naqt) and [install-qt-action](https://github.com/jdpurcell/install-qt-action) (my fork). Entirely self-contained and even works offline (no background network calls)!
+Small single-page tool for building inputs to [naqt](https://github.com/jdpurcell/naqt) and [install-qt-action](https://github.com/jdpurcell/install-qt-action) (my fork). Entirely self-contained and works offline (no background network calls)! Alternate version with [aqtinstall](https://github.com/miurahr/aqtinstall) and [official install-qt-action](https://github.com/jurplel/install-qt-action) compatibility is [published here](https://jdpurcell.github.io/naqt-command-builder/aqt/).
 
 ## How It's Made
 
