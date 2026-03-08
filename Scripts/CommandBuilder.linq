@@ -1,4 +1,5 @@
 <Query Kind="Program">
+  <Namespace>System.Net</Namespace>
   <Namespace>System.Net.Http</Namespace>
   <Namespace>System.Security.Cryptography</Namespace>
   <DisableMyExtensions>true</DisableMyExtensions>
@@ -14,9 +15,10 @@ IEnumerable<(string Host, string Target, Version Version, string Arch)> AllItems
 	select (host, target, version, arch);
 
 void Main() {
+	//FetchUpdateXmls();
 	//GenerateModuleLookups(false);
 	//TestGeneratedModules();
-	//FetchUpdateXmls();
+	//TestGeneratedExtensions();
 }
 
 void GenerateModuleLookups(bool makeJavaScript) {
@@ -86,7 +88,7 @@ void GenerateModuleLookups(bool makeJavaScript) {
 		Dictionary<string, List<VersionRange>> moduleStats = [];
 		foreach (var versionGroup in mainGroup.GroupBy(g => g.Version).OrderBy(g => g.Key)) {
 			string[] GetModules((string Host, string Target, Version Version, string Arch) item) {
-				string relativeDir = GetUpdateDirectoryUrl(item.Host, item.Target, item.Version, item.Arch).SubstringAfterFirst("/qtsdkrepository/").TrimEnd('/');
+				string relativeDir = UrlToRelativeDir(GetUpdateDirectoryUrl(item.Host, item.Target, item.Version, item.Arch));
 				XDocument updateDoc = XDocument.Parse(File.ReadAllText(Path.Combine(PathQtXmlDir, relativeDir, "Updates.xml")));
 				return [..ParseModulesFromUpdate(updateDoc, item.Arch).Where(n => !IsExcludedModule(n)).Order()];
 			}
@@ -154,7 +156,7 @@ void TestGeneratedModules() {
 	int passCount = 0;
 	int failCount = 0;
 	foreach (var (host, target, version, arch) in AllItems) {
-		string relativeDir = GetUpdateDirectoryUrl(host, target, version, arch).SubstringAfterFirst("/qtsdkrepository/").TrimEnd('/');
+		string relativeDir = UrlToRelativeDir(GetUpdateDirectoryUrl(host, target, version, arch));
 		XDocument updateDoc = XDocument.Parse(File.ReadAllText(Path.Combine(PathQtXmlDir, relativeDir, "Updates.xml")));
 		string[] expectedModules = ParseModulesFromUpdate(updateDoc, arch).Where(n => !IsExcludedModule(n)).Order().ToArray();
 		string[] generatedModules = GetRelevantModules(host, target, version, arch).Order().ToArray();
@@ -168,24 +170,75 @@ void TestGeneratedModules() {
 	return;
 }
 
+void TestGeneratedExtensions() {
+	string[] extNames = ExtensionsByPlatformAndArch.SelectMany(n => n.Value).Select(n => n.Name).Distinct().ToArray();
+	int passCount = 0;
+	int failCount = 0;
+	foreach (var (host, target, version, arch) in AllItems.Where(n => n.Version.IsAtLeast(6, 8, 0))) {
+		foreach (string ext in extNames) {
+			string relativeDir = UrlToRelativeDir(GetUpdateDirectoryUrl(host, target, version, arch, ext));
+			bool shouldExist = GetRelevantExtensions(host, target, version, arch).Contains(ext);
+			bool doesExist = File.Exists(Path.Combine(PathQtXmlDir, relativeDir, "Updates.xml"));
+			if (shouldExist == doesExist)
+				passCount++;
+			else
+				failCount++;
+		}
+	}
+	$"Pass: {passCount}".Dump();
+	$"Fail: {failCount}".Dump();
+	return;
+}
+
 bool IsExcludedModule(string name) =>
 	name == "debug_info" || name.EndsWith(".debug_information");
 
 void FetchUpdateXmls() {
 	foreach (var (host, target, version, arch) in AllItems) {
 		string updateDirUrl = GetUpdateDirectoryUrl(host, target, version, arch);
-		string relativeDir = updateDirUrl.SubstringAfterFirst("/qtsdkrepository/").TrimEnd('/');
+		string relativeDir = UrlToRelativeDir(updateDirUrl);
 		string localDir = Path.Combine(PathQtXmlDir, relativeDir);
-		Directory.CreateDirectory(localDir);
 		string xmlPath = Path.Combine(localDir, "Updates.xml");
 		string hashPath = Path.Combine(localDir, "Updates.xml.sha256");
 		if (File.Exists(xmlPath)) continue;
-		File.WriteAllBytes(xmlPath, FetchAsBytes(updateDirUrl + "Updates.xml"));
-		File.WriteAllBytes(hashPath, FetchAsBytes(updateDirUrl + "Updates.xml.sha256"));
-		byte[] expectedHash = Convert.FromHexString(File.ReadAllText(hashPath).SubstringBeforeFirst(" "));
-		byte[] actualHash = SHA256.HashData(File.ReadAllBytes(xmlPath));
+		byte[] xmlBytes = FetchAsBytes(updateDirUrl + "Updates.xml");
+		byte[] hashBytes = FetchAsBytes(updateDirUrl + "Updates.xml.sha256");
+		byte[] actualHash = SHA256.HashData(xmlBytes);
+		byte[] expectedHash = Convert.FromHexString(Encoding.UTF8.GetString(hashBytes).SubstringBeforeFirst(" "));
 		if (!actualHash.SequenceEqual(expectedHash)) throw new Exception("Hash mismatch!");
+		Directory.CreateDirectory(localDir);
+		File.WriteAllBytes(xmlPath, xmlBytes);
+		File.WriteAllBytes(hashPath, hashBytes);
 		relativeDir.Dump();
+	}
+	string[] extNames = ExtensionsByPlatformAndArch.SelectMany(n => n.Value).Select(n => n.Name).Distinct().ToArray();
+	Version[] missingExtVersions = AllItems.Where(n => GetRelevantExtensions(n.Host, n.Target, n.Version, n.Arch).Any(ext => !File.Exists(Path.Combine(PathQtXmlDir, UrlToRelativeDir(GetUpdateDirectoryUrl(n.Host, n.Target, n.Version, n.Arch, ext)), "Updates.xml")))).Select(n => n.Version).Distinct().ToArray();
+	HashSet<string> visitedUrls = [];
+	foreach (var (host, target, version, arch) in AllItems.Where(n => missingExtVersions.Contains(n.Version)).OrderBy(n => n.Version)) {
+		foreach (string ext in extNames) {
+			string updateDirUrl = GetUpdateDirectoryUrl(host, target, version, arch, ext);
+			if (!visitedUrls.Add(updateDirUrl)) continue;
+			string relativeDir = UrlToRelativeDir(updateDirUrl);
+			string localDir = Path.Combine(PathQtXmlDir, relativeDir);
+			string xmlPath = Path.Combine(localDir, "Updates.xml");
+			string hashPath = Path.Combine(localDir, "Updates.xml.sha256");
+			if (File.Exists(xmlPath)) continue;
+			byte[] xmlBytes;
+			try {
+				xmlBytes = FetchAsBytes(updateDirUrl + "Updates.xml");
+			}
+			catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.NotFound) {
+				continue;
+			}
+			byte[] hashBytes = FetchAsBytes(updateDirUrl + "Updates.xml.sha256");
+			byte[] actualHash = SHA256.HashData(xmlBytes);
+			byte[] expectedHash = Convert.FromHexString(Encoding.UTF8.GetString(hashBytes).SubstringBeforeFirst(" "));
+			if (!actualHash.SequenceEqual(expectedHash)) throw new Exception("Hash mismatch!");
+			Directory.CreateDirectory(localDir);
+			File.WriteAllBytes(xmlPath, xmlBytes);
+			File.WriteAllBytes(hashPath, hashBytes);
+			relativeDir.Dump();
+		}
 	}
 }
 
@@ -808,27 +861,47 @@ public static string GetInstallCommand(string host, string target, Version versi
 	return command;
 }
 
-public static string GetUpdateDirectoryUrl(string host, string target, Version version, string arch) {
+public static string GetUpdateDirectoryUrl(string host, string target, Version version, string arch, string extension = null) {
 	string actualHost =
 		UsesAllOsHost(target, version) ? "all_os" :
 		host == "windows" ? $"{host}_x86" :
 		host == "linux" || host == "mac" ? $"{host}_x64" :
 		host;
 	string actualTarget =
+		extension != null ? "extensions" :
 		target == "wasm" && version < new Version(6, 7, 0) ? "desktop" :
 		target;
-	string variant =
-		host == "windows" && target == "desktop" && version >= new Version(6, 11, 0) && arch.StartsWith("win64_") ? arch.Substring("win64_".Length) :
-		target == "android" && version >= new Version(6, 0, 0) && arch.StartsWith("android_") ? arch.Substring("android_".Length) :
-		target == "wasm" ? (version >= new Version(6, 5, 0) ? arch : "wasm") :
-		"";
-	string dirForVersion = $"qt{version.Major}_{version.Major}{version.Minor}{version.Build}";
-	string dirForVersionAndVariant = variant.Length != 0 ? $"{dirForVersion}_{variant}" : dirForVersion;
-	string actualDir =
-		version >= new Version(6, 8, 0) ? $"{dirForVersion}/{dirForVersionAndVariant}" :
-		dirForVersionAndVariant;
+	string versionNoDots = $"{version.Major}{version.Minor}{version.Build}";
+	string dirForVersion = $"qt{version.Major}_{versionNoDots}";
+	string actualDir;
+	if (extension == null) {
+		string variant =
+			host == "windows" && target == "desktop" && version >= new Version(6, 11, 0) && arch.StartsWith("win64_") ? arch.Substring("win64_".Length) :
+			target == "android" && version >= new Version(6, 0, 0) && arch.StartsWith("android_") ? arch.Substring("android_".Length) :
+			target == "wasm" ? (version >= new Version(6, 5, 0) ? arch : "wasm") :
+			"";
+		string dirForVersionAndVariant = variant.Length != 0 ? $"{dirForVersion}_{variant}" : dirForVersion;
+		actualDir =
+			version >= new Version(6, 8, 0) ? $"{dirForVersion}/{dirForVersionAndVariant}" :
+			dirForVersionAndVariant;
+	}
+	else {
+		string dirForArch =
+			host.StartsWith("windows") && target == "desktop" ? arch.SubstringAfterFirst("win64_").Replace("_cross_compiled", "") :
+			host == "linux" && target == "desktop" && arch == "linux_gcc_64" ? "x86_64" :
+			host == "linux_arm64" && target == "desktop" && arch == "linux_gcc_arm64" ? "arm64" :
+			host == "mac" && target == "desktop" ? arch :
+			target == "wasm" ? arch :
+			target == "android" ? $"{dirForVersion}_{arch.SubstringAfterFirst("android_")}" :
+			target == "ios" ? arch :
+			throw new NotSupportedException();
+		actualDir = $"{extension}/{versionNoDots}/{dirForArch}";
+	}
 	return $"https://download.qt.io/online/qtsdkrepository/{actualHost}/{actualTarget}/{actualDir}/";
 }
+
+public static string UrlToRelativeDir(string url) =>
+	url.SubstringAfterFirst("/qtsdkrepository/").TrimEnd('/');
 
 public static string FetchAsString(string url) {
 	return new HttpClient().GetStringAsync(url).GetAwaiter().GetResult();
