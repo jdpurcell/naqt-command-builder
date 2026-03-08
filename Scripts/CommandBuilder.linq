@@ -1,4 +1,6 @@
 <Query Kind="Program">
+  <NuGetReference>AngleSharp</NuGetReference>
+  <Namespace>AngleSharp.Html.Parser</Namespace>
   <Namespace>System.Net</Namespace>
   <Namespace>System.Net.Http</Namespace>
   <Namespace>System.Security.Cryptography</Namespace>
@@ -15,6 +17,7 @@ IEnumerable<(string Host, string Target, Version Version, string Arch)> AllItems
 	select (host, target, version, arch);
 
 void Main() {
+	//CheckForArchDirChanges(new Version(6, 11, 0));
 	//FetchUpdateXmls();
 	//GenerateModuleLookups(false);
 	//TestGeneratedModules();
@@ -242,6 +245,42 @@ void FetchUpdateXmls() {
 	}
 }
 
+void CheckForArchDirChanges(Version version) {
+	if (version < new Version(6, 11, 0)) throw new InvalidOperationException();
+	void Expect(string url, IEnumerable<string> dirs) {
+		UrlToRelativeDir(url).Dump();
+		string[] actual = ParseIndexEntries(FetchAsString(url)).Where(n => n.IsDir).Select(n => n.Name).ToArray();
+		if (!actual.SequenceEqual(dirs)) {
+			dirs.Dump();
+			actual.Dump();
+			throw new Exception("Directory validation failure!");
+		}
+	}
+	string baseUrl = "https://download.qt.io/online/qtsdkrepository/";
+	string versionNoDots = version.ToStringNoDots();
+	string folderVersion = $"qt{version.Major}_{versionNoDots}";
+	Expect($"{baseUrl}windows_x86/desktop/{folderVersion}/", new[] { "msvc2022_arm64_cross_compiled", "msvc2022_64", "mingw", "llvm_mingw" }.Select(n => $"{folderVersion}_{n}"));
+	Expect($"{baseUrl}windows_arm64/desktop/{folderVersion}/", [folderVersion]);
+	Expect($"{baseUrl}linux_x64/desktop/{folderVersion}/", [folderVersion]);
+	Expect($"{baseUrl}linux_arm64/desktop/{folderVersion}/", [folderVersion]);
+	Expect($"{baseUrl}mac_x64/desktop/{folderVersion}/", [folderVersion]);
+	Expect($"{baseUrl}all_os/android/{folderVersion}/", new[] { "x86_64", "x86", "armv7", "arm64_v8a" }.Select(n => $"{folderVersion}_{n}"));
+	Expect($"{baseUrl}all_os/wasm/{folderVersion}/", new[] { "wasm_singlethread", "wasm_multithread" }.Select(n => $"{folderVersion}_{n}"));
+	Expect($"{baseUrl}mac_x64/ios/{folderVersion}/", [folderVersion]);
+	Expect($"{baseUrl}windows_x86/extensions/qtpdf/{versionNoDots}/", ["src_doc_examples", "msvc2022_arm64", "msvc2022_64", "mingw", "main", "llvm_mingw"]);
+	Expect($"{baseUrl}windows_x86/extensions/qtwebengine/{versionNoDots}/", ["src_doc_examples", "msvc2022_arm64", "msvc2022_64", "main"]);
+	Expect($"{baseUrl}windows_arm64/extensions/qtpdf/{versionNoDots}/", ["msvc2022_arm64", "main"]);
+	Expect($"{baseUrl}windows_arm64/extensions/qtwebengine/{versionNoDots}/", ["msvc2022_arm64", "main"]);
+	Expect($"{baseUrl}linux_x64/extensions/qtpdf/{versionNoDots}/", ["x86_64", "main"]);
+	Expect($"{baseUrl}linux_x64/extensions/qtwebengine/{versionNoDots}/", ["x86_64", "main"]);
+	Expect($"{baseUrl}linux_arm64/extensions/qtpdf/{versionNoDots}/", ["main", "arm64"]);
+	Expect($"{baseUrl}linux_arm64/extensions/qtwebengine/{versionNoDots}/", ["main", "arm64"]);
+	Expect($"{baseUrl}mac_x64/extensions/qtpdf/{versionNoDots}/", ["main", "ios", "clang_64"]);
+	Expect($"{baseUrl}mac_x64/extensions/qtwebengine/{versionNoDots}/", ["main", "clang_64"]);
+	Expect($"{baseUrl}all_os/extensions/qtpdf/{versionNoDots}/", ["src_doc_examples", .. new[] { "x86_64", "x86", "armv7", "arm64_v8a" }.Select(n => $"{folderVersion}_{n}"), "android"]);
+	Expect($"{baseUrl}all_os/extensions/qtwebengine/{versionNoDots}/", ["src_doc_examples"]);
+}
+
 static class ExtensionMethods {
 	public static string StringJoin(this IEnumerable<string> values, string separator) =>
 		String.Join(separator, values);
@@ -263,6 +302,9 @@ static class ExtensionMethods {
 
 	public static bool IsBetween(this Version version, (int major, int minor, int revision) start, (int major, int minor, int revision) end) =>
 		version.IsAtLeast(start.major, start.minor, start.revision) && version.IsUnder(end.major, end.minor, end.revision);
+
+	public static string ToStringNoDots(this Version version) =>
+		$"{version.Major}{version.Minor}{version.Build}";
 }
 
 class VersionRange(Version start, Version end) {
@@ -777,7 +819,7 @@ static Dictionary<string, QtExtension[]> ExtensionsByPlatformAndArch = new() {
 	]
 };
 
-public static string[] Hosts = [
+static string[] Hosts = [
 	"windows",
 	"windows_arm64",
 	"linux",
@@ -785,27 +827,27 @@ public static string[] Hosts = [
 	"mac"
 ];
 
-public static string[] Targets = [
+static string[] Targets = [
 	"desktop",
 	"wasm",
 	"android",
 	"ios"
 ];
 
-public static Version[] Versions = [..
+static Version[] Versions = [..
 	from rel in Releases
 	from patch in Enumerable.Range(0, rel.LastPatch + 1)
 	select new Version(rel.Major, rel.Minor, patch)
 ];
 
-public static IEnumerable<string> GetRelevantTargets(string host) {
+static IEnumerable<string> GetRelevantTargets(string host) {
 	foreach (string target in Targets) {
 		if (target == "ios" && host != "mac") continue;
 		yield return target;
 	}
 }
 
-public static IEnumerable<Version> GetRelevantVersions(string host, string target) {
+static IEnumerable<Version> GetRelevantVersions(string host, string target) {
 	bool isCrossCompile = target != "desktop";
 	QtArch[] arches = ArchesByPlatform[MakePlatform(host, target)];
 	QtArch[] desktopArches = isCrossCompile ? ArchesByPlatform[MakePlatform(host, "desktop")] : [];
@@ -817,14 +859,14 @@ public static IEnumerable<Version> GetRelevantVersions(string host, string targe
 	}
 }
 
-public static IEnumerable<string> GetRelevantArches(string host, string target, Version version) {
+static IEnumerable<string> GetRelevantArches(string host, string target, Version version) {
 	foreach (QtArch arch in ArchesByPlatform[MakePlatform(host, target)]) {
 		if (!arch.IsAvailable(version)) continue;
 		yield return arch.Name;
 	}
 }
 
-public static IEnumerable<string> GetRelevantModules(string host, string target, Version version, string arch) {
+static IEnumerable<string> GetRelevantModules(string host, string target, Version version, string arch) {
 	QtModule[] modules = ModulesByPlatformAndArch.GetValueOrDefault($"{MakePlatform(host, target)}.{arch}") ?? [];
 	foreach (QtModule module in modules) {
 		if (module.IsAvailable?.Invoke(version) == false) continue;
@@ -832,7 +874,7 @@ public static IEnumerable<string> GetRelevantModules(string host, string target,
 	}
 }
 
-public static IEnumerable<string> GetRelevantExtensions(string host, string target, Version version, string arch) {
+static IEnumerable<string> GetRelevantExtensions(string host, string target, Version version, string arch) {
 	QtExtension[] extensions = ExtensionsByPlatformAndArch.GetValueOrDefault($"{MakePlatform(host, target)}.{arch}") ?? [];
 	foreach (QtExtension extension in extensions) {
 		if (!extension.IsAvailable(version)) continue;
@@ -840,17 +882,17 @@ public static IEnumerable<string> GetRelevantExtensions(string host, string targ
 	}
 }
 
-public static string MakePlatform(string host, string target) {
+static string MakePlatform(string host, string target) {
 	return target == "desktop" ? $"{host}.{target}" : target;
 }
 
-public static bool UsesAllOsHost(string target, Version version) {
+static bool UsesAllOsHost(string target, Version version) {
 	if (target == "wasm" && version >= new Version(6, 7, 0)) return true;
 	if (target == "android" && version >= new Version(6, 7, 0)) return true;
 	return false;
 }
 
-public static string GetInstallCommand(string host, string target, Version version, string arch) {
+static string GetInstallCommand(string host, string target, Version version, string arch) {
 	string targetHost = UsesAllOsHost(target, version) ? "all_os" : host;
 	bool isCrossCompile = target != "desktop" || arch == "win64_msvc2019_arm64" || arch.EndsWith("_cross_compiled");
 	string[] extraArgs = isCrossCompile ? ["--autodesktop"] : [];
@@ -861,7 +903,7 @@ public static string GetInstallCommand(string host, string target, Version versi
 	return command;
 }
 
-public static string GetUpdateDirectoryUrl(string host, string target, Version version, string arch, string extension = null) {
+static string GetUpdateDirectoryUrl(string host, string target, Version version, string arch, string extension = null) {
 	string actualHost =
 		UsesAllOsHost(target, version) ? "all_os" :
 		host == "windows" ? $"{host}_x86" :
@@ -871,8 +913,7 @@ public static string GetUpdateDirectoryUrl(string host, string target, Version v
 		extension != null ? "extensions" :
 		target == "wasm" && version < new Version(6, 7, 0) ? "desktop" :
 		target;
-	string versionNoDots = $"{version.Major}{version.Minor}{version.Build}";
-	string dirForVersion = $"qt{version.Major}_{versionNoDots}";
+	string dirForVersion = $"qt{version.Major}_{version.ToStringNoDots()}";
 	string actualDir;
 	if (extension == null) {
 		string variant =
@@ -895,28 +936,43 @@ public static string GetUpdateDirectoryUrl(string host, string target, Version v
 			target == "android" ? $"{dirForVersion}_{arch.SubstringAfterFirst("android_")}" :
 			target == "ios" ? arch :
 			throw new NotSupportedException();
-		actualDir = $"{extension}/{versionNoDots}/{dirForArch}";
+		actualDir = $"{extension}/{version.ToStringNoDots()}/{dirForArch}";
 	}
 	return $"https://download.qt.io/online/qtsdkrepository/{actualHost}/{actualTarget}/{actualDir}/";
 }
 
-public static string UrlToRelativeDir(string url) =>
+static string UrlToRelativeDir(string url) =>
 	url.SubstringAfterFirst("/qtsdkrepository/").TrimEnd('/');
 
-public static string FetchAsString(string url) {
+static string FetchAsString(string url) {
 	return new HttpClient().GetStringAsync(url).GetAwaiter().GetResult();
 }
 
-public static byte[] FetchAsBytes(string url) {
+static byte[] FetchAsBytes(string url) {
 	return new HttpClient().GetByteArrayAsync(url).GetAwaiter().GetResult();
 }
 
-public static string[] ParseModulesFromUpdate(XDocument updateDoc, string arch) {
+static string[] ParseModulesFromUpdate(XDocument updateDoc, string arch) {
 	return [..
 		from package in updateDoc.Descendants("PackageUpdate")
 		let nameSegments = package.Element("Name")!.Value.Split('.')
 		where nameSegments.Length >= 5 && nameSegments[^1] == arch
 		let startSegment = nameSegments.Length >= 6 && nameSegments[3] == "addons" ? 4 : 3
 		select String.Join('.', nameSegments[startSegment..^1])
+	];
+}
+
+record IndexEntry(string Name, bool IsDir);
+
+static List<IndexEntry> ParseIndexEntries(string html) {
+    return [..
+		from row in new HtmlParser().ParseDocument(html).QuerySelectorAll("table tr")
+		let cells = row.QuerySelectorAll(":scope > td").ToList()
+		where cells.Count >= 3
+		let name = cells[1].TextContent.Trim()
+		let metadataText = cells[^1].TextContent.Trim()
+		where !name.Equals("Parent Directory", StringComparison.OrdinalIgnoreCase)
+		let isDir = metadataText.Length == 0
+		select new IndexEntry(isDir ? name.TrimEnd('/') : name, isDir)
 	];
 }
