@@ -1,0 +1,38 @@
+name: Qt Release Watch
+
+on:
+  schedule:
+    - cron: '0 */4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: qt-release-watch
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    env:
+      QT_RELEASE_WATCH_TOKEN: ${{ secrets.QT_RELEASE_WATCH_TOKEN }}
+    steps:
+      - name: Checkout
+        if: env.QT_RELEASE_WATCH_TOKEN != ''
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        if: env.QT_RELEASE_WATCH_TOKEN != ''
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
+      - name: Check watched Qt releases
+        if: env.QT_RELEASE_WATCH_TOKEN != ''
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          QT_UPDATE_FOLDER_WATCH: ${{ vars.QT_UPDATE_FOLDER_WATCH }}
+          QT_RELEASE_NOTES_WATCH: ${{ vars.QT_RELEASE_NOTES_WATCH }}
+        run: node .github/scripts/qt-release-watch.mjs
