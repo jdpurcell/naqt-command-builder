@@ -246,7 +246,7 @@ void FetchUpdateXmls() {
 }
 
 void CheckForArchDirChanges(Version version) {
-	if (version < new Version(6, 11, 0)) throw new InvalidOperationException();
+	if (version.IsUnder(6, 11, 0)) throw new InvalidOperationException();
 	void Expect(string url, IEnumerable<string> dirs) {
 		UrlToRelativeDir(url).Dump();
 		string[] actual = ParseIndexEntries(FetchAsString(url)).Where(n => n.IsDir).Select(n => n.Name).ToArray();
@@ -285,14 +285,24 @@ static class ExtensionMethods {
 	public static string StringJoin(this IEnumerable<string> values, string separator) =>
 		String.Join(separator, values);
 
+	public static string StripPrefix(this string str, string value, bool optional = false) =>
+		str.StartsWith(value, StringComparison.Ordinal) ? str.Substring(value.Length) :
+		optional ? str :
+		throw new Exception($"Prefix \"{value}\" not found.");
+
+	public static string StripSuffix(this string str, string value, bool optional = false) =>
+		str.EndsWith(value, StringComparison.Ordinal) ? str.Substring(0, str.Length - value.Length) :
+		optional ? str :
+		throw new Exception($"Suffix \"{value}\" not found.");
+
 	public static string SubstringBeforeFirst(this string str, string delim) =>
-		str.Substring(0, str.IndexOf(delim, StringComparison.Ordinal).ThrowIfLtZero());
+		str.Substring(0, str.IndexOf(delim, StringComparison.Ordinal).ThrowIfLtZero($"Delimiter \"{delim}\" not found."));
 
 	public static string SubstringAfterFirst(this string str, string delim) =>
-		str.Substring(str.IndexOf(delim, StringComparison.Ordinal).ThrowIfLtZero() + delim.Length);
+		str.Substring(str.IndexOf(delim, StringComparison.Ordinal).ThrowIfLtZero($"Delimiter \"{delim}\" not found.") + delim.Length);
 
-	public static int ThrowIfLtZero(this int value) =>
-		value >= 0 ? value : throw new ArgumentOutOfRangeException();
+	public static int ThrowIfLtZero(this int value, string errorMessage) =>
+		value >= 0 ? value : throw new InvalidDataException(errorMessage);
 
 	public static bool IsAtLeast(this Version version, int major, int minor, int revision) =>
 		version >= new Version(major, minor, revision);
@@ -887,8 +897,8 @@ static string MakePlatform(string host, string target) {
 }
 
 static bool UsesAllOsHost(string target, Version version) {
-	if (target == "wasm" && version >= new Version(6, 7, 0)) return true;
-	if (target == "android" && version >= new Version(6, 7, 0)) return true;
+	if (target == "wasm" && version.IsAtLeast(6, 7, 0)) return true;
+	if (target == "android" && version.IsAtLeast(6, 7, 0)) return true;
 	return false;
 }
 
@@ -911,34 +921,32 @@ static string GetUpdateDirectoryUrl(string host, string target, Version version,
 		host;
 	string actualTarget =
 		extension != null ? "extensions" :
-		target == "wasm" && version < new Version(6, 7, 0) ? "desktop" :
+		target == "wasm" && version.IsUnder(6, 7, 0) ? "desktop" :
 		target;
 	string dirForVersion = $"qt{version.Major}_{version.ToStringNoDots()}";
-	string actualDir;
+	string componentDir;
 	if (extension == null) {
 		string variant =
-			host == "windows" && target == "desktop" && version >= new Version(6, 11, 0) && arch.StartsWith("win64_") ? arch.Substring("win64_".Length) :
-			target == "android" && version >= new Version(6, 0, 0) && arch.StartsWith("android_") ? arch.Substring("android_".Length) :
-			target == "wasm" ? (version >= new Version(6, 5, 0) ? arch : "wasm") :
+			host == "windows" && target == "desktop" && version.IsAtLeast(6, 11, 0) ? arch.StripPrefix("win64_") :
+			target == "android" && version.IsAtLeast(6, 0, 0) ? arch.StripPrefix("android_") :
+			target == "wasm" ? (version.IsAtLeast(6, 5, 0) ? arch : "wasm") :
 			"";
 		string dirForVersionAndVariant = variant.Length != 0 ? $"{dirForVersion}_{variant}" : dirForVersion;
-		actualDir =
-			version >= new Version(6, 8, 0) ? $"{dirForVersion}/{dirForVersionAndVariant}" :
-			dirForVersionAndVariant;
+		componentDir = version.IsAtLeast(6, 8, 0) ? $"{dirForVersion}/{dirForVersionAndVariant}" : dirForVersionAndVariant;
 	}
 	else {
 		string dirForArch =
-			host.StartsWith("windows") && target == "desktop" ? arch.SubstringAfterFirst("win64_").Replace("_cross_compiled", "") :
+			host.StartsWith("windows") && target == "desktop" ? arch.StripPrefix("win64_").StripSuffix("_cross_compiled", optional: true) :
 			host == "linux" && target == "desktop" && arch == "linux_gcc_64" ? "x86_64" :
 			host == "linux_arm64" && target == "desktop" && arch == "linux_gcc_arm64" ? "arm64" :
 			host == "mac" && target == "desktop" ? arch :
 			target == "wasm" ? arch :
-			target == "android" ? $"{dirForVersion}_{arch.SubstringAfterFirst("android_")}" :
+			target == "android" ? $"{dirForVersion}_{arch.StripPrefix("android_")}" :
 			target == "ios" ? arch :
 			throw new NotSupportedException();
-		actualDir = $"{extension}/{version.ToStringNoDots()}/{dirForArch}";
+		componentDir = $"{extension}/{version.ToStringNoDots()}/{dirForArch}";
 	}
-	return $"https://download.qt.io/online/qtsdkrepository/{actualHost}/{actualTarget}/{actualDir}/";
+	return $"https://download.qt.io/online/qtsdkrepository/{actualHost}/{actualTarget}/{componentDir}/";
 }
 
 static string UrlToRelativeDir(string url) =>

@@ -902,8 +902,8 @@
       "";
     const dirForVersion = `qt${version.major}_${version.major}${version.minor}${version.patch}`;
     const dirForVersionAndVariant = variant.length !== 0 ? `${dirForVersion}_${variant}` : dirForVersion;
-    const actualDir = gte(version, V(6,8,0)) ? `${dirForVersion}/${dirForVersionAndVariant}` : dirForVersionAndVariant;
-    return `https://download.qt.io/online/qtsdkrepository/${actualHost}/${actualTarget}/${actualDir}/`;
+    const componentDir = gte(version, V(6,8,0)) ? `${dirForVersion}/${dirForVersionAndVariant}` : dirForVersionAndVariant;
+    return `https://download.qt.io/online/qtsdkrepository/${actualHost}/${actualTarget}/${componentDir}/`;
   }
 
   // -----------------------------
