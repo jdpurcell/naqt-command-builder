@@ -87,7 +87,7 @@ async function updateRepositoryVariable(name, value) {
     `/repos/${owner}/${repo}/actions/variables/${name}`,
     {
       name,
-      value,
+      value: value || ';',
     },
     { token: variableToken },
   );
