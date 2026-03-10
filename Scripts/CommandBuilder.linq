@@ -353,7 +353,7 @@ static QtRelease[] Releases = [
 	new(6, 7, 3),
 	new(6, 8, 3),
 	new(6, 9, 3),
-	new(6, 10, 2)
+	new(6, 10, 3)
 ];
 
 record QtArch(string Name, Func<Version, bool> IsAvailable);
