@@ -63,7 +63,6 @@
       padding: 6px 6px;
       border-radius: 8px;
       border: 1px solid rgba(127,127,127,.45);
-      background: transparent;
       font-size: 14px;
     }
     select:disabled { opacity: .55; }
@@ -996,12 +995,11 @@
     els.actionRepoLink.href = "https://github.com/jurplel/install-qt-action";
   }
 
-  function setOptions(select, items, placeholder) {
+  function setOptions(select, items) {
     select.innerHTML = "";
     const ph = document.createElement("option");
     ph.value = "";
-    ph.textContent = placeholder;
-    ph.disabled = true;
+    ph.textContent = "";
     ph.selected = true;
     select.appendChild(ph);
 
@@ -1014,16 +1012,19 @@
   }
 
   function resetTarget() {
-    setOptions(els.target, [], "Choose…");
+    setOptions(els.target, []);
     els.target.disabled = true;
+    els.target.dispatchEvent(new Event("change"));
   }
   function resetVersion() {
-    setOptions(els.version, [], "Choose…");
+    setOptions(els.version, []);
     els.version.disabled = true;
+    els.version.dispatchEvent(new Event("change"));
   }
   function resetArch() {
-    setOptions(els.arch, [], "Choose…");
+    setOptions(els.arch, []);
     els.arch.disabled = true;
+    els.arch.dispatchEvent(new Event("change"));
   }
 
   function hasFullSelection() {
@@ -1189,7 +1190,7 @@
   resetTarget(); resetVersion(); resetArch();
   applyCompatModeUi();
 
-  setOptions(els.host, Hosts, "Choose…");
+  setOptions(els.host, Hosts);
 
   els.host.addEventListener("change", () => {
     const host = els.host.value;
@@ -1200,7 +1201,7 @@
     if (!host) return;
 
     const targets = getRelevantTargets(host);
-    setOptions(els.target, targets, "Choose…");
+    setOptions(els.target, targets);
     els.target.disabled = false;
 
     syncAddonAvailability();
@@ -1218,7 +1219,7 @@
     const versions = getRelevantVersions(host, target)
       .map(v => ({ value: vToString(v), label: vToString(v) }));
     versions.sort((a, b) => cmpV(parseV(b.value), parseV(a.value)));
-    setOptions(els.version, versions, "Choose…");
+    setOptions(els.version, versions);
     els.version.disabled = false;
 
     syncAddonAvailability();
@@ -1236,7 +1237,7 @@
 
     const version = parseV(versionStr);
     const arches = getRelevantArches(host, target, version);
-    setOptions(els.arch, arches, "Choose…");
+    setOptions(els.arch, arches);
     els.arch.disabled = false;
 
     syncAddonAvailability();
