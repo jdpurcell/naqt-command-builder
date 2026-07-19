@@ -263,6 +263,7 @@
     QtRelease(6,  9,  3),
     QtRelease(6, 10,  3),
     QtRelease(6, 11,  1),
+    QtRelease(6, 12,  0),
   ];
 
   const Hosts = [
@@ -277,6 +278,7 @@
     "desktop",
     "wasm",
     "android",
+    "harmonyos",
     "ios",
   ];
 
@@ -345,6 +347,9 @@
       QtArch("android_x86", v => !btw(v, V(5,14,0), V(6,0,0))),
       QtArch("android_x86_64", v => gte(v, V(5,13,0)) && !btw(v, V(5,14,0), V(6,0,0))),
       QtArch("android", v => btw(v, V(5,14,0), V(6,0,0))),
+    ],
+    "harmonyos": [
+      QtArch("harmonyos_arm64_v8a", v => gte(v, V(6,12,0))),
     ],
     "ios": [
       QtArch("ios", _v => true),
@@ -684,6 +689,39 @@
       QtMod("qtwebsockets", v => gte(v, V(6,2,0))),
       QtMod("qtwebview", v => gte(v, V(6,2,0))),
     ],
+    "ModulesHarmonyOs": [
+      QtMod("qt3d"),
+      QtMod("qt5compat"),
+      QtMod("qtcanvaspainter"),
+      QtMod("qtcharts"),
+      QtMod("qtconnectivity"),
+      QtMod("qtdatavis3d"),
+      QtMod("qtgraphs"),
+      QtMod("qtgrpc"),
+      QtMod("qthttpserver"),
+      QtMod("qtimageformats"),
+      QtMod("qtlocation"),
+      QtMod("qtlottie"),
+      QtMod("qtmultimedia"),
+      QtMod("qtnetworkauth"),
+      QtMod("qtopenapi"),
+      QtMod("qtpositioning"),
+      QtMod("qtquick3d"),
+      QtMod("qtquick3dphysics"),
+      QtMod("qtquicktimeline"),
+      QtMod("qtremoteobjects"),
+      QtMod("qtscxml"),
+      QtMod("qtsensors"),
+      QtMod("qtserialbus"),
+      QtMod("qtserialport"),
+      QtMod("qtshadertools"),
+      QtMod("qtspeech"),
+      QtMod("qttasktree"),
+      QtMod("qtvirtualkeyboard"),
+      QtMod("qtwebchannel"),
+      QtMod("qtwebsockets"),
+      QtMod("qtwebview"),
+    ],
     "ModulesIos": [
       QtMod("qt3d", v => gte(v, V(6,1,0))),
       QtMod("qt5compat", v => gte(v, V(6,0,0))),
@@ -748,6 +786,7 @@
     "android.android_x86": ModulesByAlias["ModulesAndroid"],
     "android.android_x86_64": ModulesByAlias["ModulesAndroid"],
     "android.android": ModulesByAlias["ModulesAndroid"],
+    "harmonyos.harmonyos_arm64_v8a": ModulesByAlias["ModulesHarmonyOs"],
     "ios.ios": ModulesByAlias["ModulesIos"],
   };
 
@@ -849,6 +888,7 @@
   function usesAllOsHost(target, version) {
     if (target === "wasm" && gte(version, V(6,7,0))) return true;
     if (target === "android" && gte(version, V(6,7,0))) return true;
+    if (target === "harmonyos") return true;
     return false;
   }
 
@@ -926,6 +966,7 @@
     const variant =
       host === "windows" && target === "desktop" && gte(version, V(6,11,0)) && arch.startsWith("win64_") ? arch.substring("win64_".length) :
       target === "android" && gte(version, V(6,0,0)) && arch.startsWith("android_") ? arch.substring("android_".length) :
+      target === "harmonyos" && arch.startsWith("harmonyos_") ? arch.substring("harmonyos_".length) :
       target === "wasm" ? (gte(version, V(6,5,0)) ? arch : "wasm") :
       "";
     const dirForVersion = `qt${version.major}_${version.major}${version.minor}${version.patch}`;

@@ -74,6 +74,9 @@ void GenerateModuleLookups(bool makeJavaScript) {
 			"android.android_x86",
 			"android.android_x86_64"
 		]),
+		("ModulesHarmonyOs", [
+			"harmonyos.harmonyos_arm64_v8a"
+		]),
 		("ModulesIos", [
 			"ios.ios"
 		]),
@@ -354,7 +357,8 @@ static QtRelease[] Releases = [
 	new(6, 8, 3),
 	new(6, 9, 3),
 	new(6, 10, 3),
-	new(6, 11, 1)
+	new(6, 11, 1),
+	new(6, 12, 0)
 ];
 
 record QtArch(string Name, Func<Version, bool> IsAvailable);
@@ -400,6 +404,9 @@ static Dictionary<string, QtArch[]> ArchesByPlatform = new() {
 		new("android_x86", v => !v.IsBetween((5, 14, 0), (6, 0, 0))),
 		new("android_x86_64", v => v.IsAtLeast(5, 13, 0) && !v.IsBetween((5, 14, 0), (6, 0, 0))),
 		new("android", v => v.IsBetween((5, 14, 0), (6, 0, 0)))
+	],
+	["harmonyos"] = [
+		new("harmonyos_arm64_v8a", v => v.IsAtLeast(6, 12, 0))
 	],
 	["ios"] = [
 		new("ios", v => true)
@@ -740,6 +747,39 @@ static Dictionary<string, QtModule[]> ModulesByAlias = new() {
 		new("qtwebsockets", v => v.IsAtLeast(6, 2, 0)),
 		new("qtwebview", v => v.IsAtLeast(6, 2, 0)),
 	],
+	["ModulesHarmonyOs"] = [
+		new("qt3d"),
+		new("qt5compat"),
+		new("qtcanvaspainter"),
+		new("qtcharts"),
+		new("qtconnectivity"),
+		new("qtdatavis3d"),
+		new("qtgraphs"),
+		new("qtgrpc"),
+		new("qthttpserver"),
+		new("qtimageformats"),
+		new("qtlocation"),
+		new("qtlottie"),
+		new("qtmultimedia"),
+		new("qtnetworkauth"),
+		new("qtopenapi"),
+		new("qtpositioning"),
+		new("qtquick3d"),
+		new("qtquick3dphysics"),
+		new("qtquicktimeline"),
+		new("qtremoteobjects"),
+		new("qtscxml"),
+		new("qtsensors"),
+		new("qtserialbus"),
+		new("qtserialport"),
+		new("qtshadertools"),
+		new("qtspeech"),
+		new("qttasktree"),
+		new("qtvirtualkeyboard"),
+		new("qtwebchannel"),
+		new("qtwebsockets"),
+		new("qtwebview"),
+	],
 	["ModulesIos"] = [
 		new("qt3d", v => v.IsAtLeast(6, 1, 0)),
 		new("qt5compat", v => v.IsAtLeast(6, 0, 0)),
@@ -805,6 +845,7 @@ static Dictionary<string, QtModule[]> ModulesByPlatformAndArch = new() {
 	["android.android_x86"] = ModulesByAlias["ModulesAndroid"],
 	["android.android_x86_64"] = ModulesByAlias["ModulesAndroid"],
 	["android.android"] = ModulesByAlias["ModulesAndroid"],
+	["harmonyos.harmonyos_arm64_v8a"] = ModulesByAlias["ModulesHarmonyOs"],
 	["ios.ios"] = ModulesByAlias["ModulesIos"],
 };
 
@@ -870,6 +911,7 @@ static string[] Targets = [
 	"desktop",
 	"wasm",
 	"android",
+	"harmonyos",
 	"ios"
 ];
 
@@ -928,6 +970,7 @@ static string MakePlatform(string host, string target) {
 static bool UsesAllOsHost(string target, Version version) {
 	if (target == "wasm" && version.IsAtLeast(6, 7, 0)) return true;
 	if (target == "android" && version.IsAtLeast(6, 7, 0)) return true;
+	if (target == "harmonyos") return true;
 	return false;
 }
 
@@ -958,6 +1001,7 @@ static string GetUpdateDirectoryUrl(string host, string target, Version version,
 		string variant =
 			host == "windows" && target == "desktop" && version.IsAtLeast(6, 11, 0) ? arch.StripPrefix("win64_") :
 			target == "android" && version.IsAtLeast(6, 0, 0) ? arch.StripPrefix("android_") :
+			target == "harmonyos" ? arch.StripPrefix("harmonyos_") :
 			target == "wasm" ? (version.IsAtLeast(6, 5, 0) ? arch : "wasm") :
 			"";
 		string dirForVersionAndVariant = variant.Length != 0 ? $"{dirForVersion}_{variant}" : dirForVersion;
@@ -971,6 +1015,7 @@ static string GetUpdateDirectoryUrl(string host, string target, Version version,
 			host == "mac" && target == "desktop" ? arch :
 			target == "wasm" ? arch :
 			target == "android" ? $"{dirForVersion}_{arch.StripPrefix("android_")}" :
+			target == "harmonyos" ? arch : // TBD (no extensions yet)
 			target == "ios" ? arch :
 			throw new NotSupportedException();
 		componentDir = $"{extension}/{version.ToStringNoDots()}/{dirForArch}";
@@ -1002,7 +1047,7 @@ static string[] ParseModulesFromUpdate(XDocument updateDoc, string arch) {
 record IndexEntry(string Name, bool IsDir);
 
 static List<IndexEntry> ParseIndexEntries(string html) {
-    return [..
+	return [..
 		from row in new HtmlParser().ParseDocument(html).QuerySelectorAll("table tr")
 		let cells = row.QuerySelectorAll(":scope > td").ToList()
 		where cells.Count >= 3
