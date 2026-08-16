@@ -17,7 +17,7 @@ IEnumerable<(string Host, string Target, Version Version, string Arch)> AllItems
 	select (host, target, version, arch);
 
 void Main() {
-	//CheckForArchDirChanges(new Version(6, 11, 1));
+	//CheckForArchDirChanges(new Version(6, 11, 2));
 	//FetchUpdateXmls();
 	//GenerateModuleLookups(false);
 	//TestGeneratedModules();
@@ -357,7 +357,7 @@ static QtRelease[] Releases = [
 	new(6, 8, 3),
 	new(6, 9, 3),
 	new(6, 10, 3),
-	new(6, 11, 1),
+	new(6, 11, 2),
 	new(6, 12, 0)
 ];
 
