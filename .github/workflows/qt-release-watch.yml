@@ -21,11 +21,11 @@ jobs:
     steps:
       - name: Checkout
         if: env.QT_RELEASE_WATCH_TOKEN != ''
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Setup Node.js
         if: env.QT_RELEASE_WATCH_TOKEN != ''
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: '24'
 

@@ -17,11 +17,10 @@ IEnumerable<(string Host, string Target, Version Version, string Arch)> AllItems
 	select (host, target, version, arch);
 
 void Main() {
-	//CheckForArchDirChanges(new Version(6, 11, 2));
+	//CheckForArchDirChanges(new Version(6, 12, 0), new Version(6, 140, 0));
 	//FetchUpdateXmls();
 	//GenerateModuleLookups(false);
 	//TestGeneratedModules();
-	//TestGeneratedExtensions();
 }
 
 void GenerateModuleLookups(bool makeJavaScript) {
@@ -78,7 +77,10 @@ void GenerateModuleLookups(bool makeJavaScript) {
 			"harmonyos.harmonyos_arm64_v8a"
 		]),
 		("ModulesIos", [
-			"ios.ios"
+			"ios.ios",
+			"ios.ios_device",
+			"ios.ios_simulator_arm64",
+			"ios.ios_simulator_x86_64"
 		]),
 	];
 	string GetAlias(string platform, string arch) {
@@ -173,34 +175,17 @@ void TestGeneratedModules() {
 	}
 	$"Pass: {passCount}".Dump();
 	$"Fail: {failCount}".Dump();
-	return;
-}
-
-void TestGeneratedExtensions() {
-	string[] extNames = ExtensionsByPlatformAndArch.SelectMany(n => n.Value).Select(n => n.Name).Distinct().ToArray();
-	int passCount = 0;
-	int failCount = 0;
-	foreach (var (host, target, version, arch) in AllItems.Where(n => n.Version.IsAtLeast(6, 8, 0))) {
-		foreach (string ext in extNames) {
-			string relativeDir = UrlToRelativeDir(GetUpdateDirectoryUrl(host, target, version, arch, ext));
-			bool shouldExist = GetRelevantExtensions(host, target, version, arch).Contains(ext);
-			bool doesExist = File.Exists(Path.Combine(PathQtXmlDir, relativeDir, "Updates.xml"));
-			if (shouldExist == doesExist)
-				passCount++;
-			else
-				failCount++;
-		}
-	}
-	$"Pass: {passCount}".Dump();
-	$"Fail: {failCount}".Dump();
-	return;
 }
 
 bool IsExcludedModule(string name) =>
 	name == "debug_info" || name.EndsWith(".debug_information");
 
 void FetchUpdateXmls() {
+	HashSet<string> extUpdateDirUrls = [];
 	foreach (var (host, target, version, arch) in AllItems) {
+		foreach (string ext in GetRelevantExtensions(host, target, version, arch)) {
+			extUpdateDirUrls.Add(GetUpdateDirectoryUrl(host, target, version, arch, ext));
+		}
 		string updateDirUrl = GetUpdateDirectoryUrl(host, target, version, arch);
 		string relativeDir = UrlToRelativeDir(updateDirUrl);
 		string localDir = Path.Combine(PathQtXmlDir, relativeDir);
@@ -217,38 +202,25 @@ void FetchUpdateXmls() {
 		File.WriteAllBytes(hashPath, hashBytes);
 		relativeDir.Dump();
 	}
-	string[] extNames = ExtensionsByPlatformAndArch.SelectMany(n => n.Value).Select(n => n.Name).Distinct().ToArray();
-	Version[] missingExtVersions = AllItems.Where(n => GetRelevantExtensions(n.Host, n.Target, n.Version, n.Arch).Any(ext => !File.Exists(Path.Combine(PathQtXmlDir, UrlToRelativeDir(GetUpdateDirectoryUrl(n.Host, n.Target, n.Version, n.Arch, ext)), "Updates.xml")))).Select(n => n.Version).Distinct().ToArray();
-	HashSet<string> visitedUrls = [];
-	foreach (var (host, target, version, arch) in AllItems.Where(n => missingExtVersions.Contains(n.Version)).OrderBy(n => n.Version)) {
-		foreach (string ext in extNames) {
-			string updateDirUrl = GetUpdateDirectoryUrl(host, target, version, arch, ext);
-			if (!visitedUrls.Add(updateDirUrl)) continue;
-			string relativeDir = UrlToRelativeDir(updateDirUrl);
-			string localDir = Path.Combine(PathQtXmlDir, relativeDir);
-			string xmlPath = Path.Combine(localDir, "Updates.xml");
-			string hashPath = Path.Combine(localDir, "Updates.xml.sha256");
-			if (File.Exists(xmlPath)) continue;
-			byte[] xmlBytes;
-			try {
-				xmlBytes = FetchAsBytes(updateDirUrl + "Updates.xml");
-			}
-			catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.NotFound) {
-				continue;
-			}
-			byte[] hashBytes = FetchAsBytes(updateDirUrl + "Updates.xml.sha256");
-			byte[] actualHash = SHA256.HashData(xmlBytes);
-			byte[] expectedHash = Convert.FromHexString(Encoding.UTF8.GetString(hashBytes).SubstringBeforeFirst(" "));
-			if (!actualHash.SequenceEqual(expectedHash)) throw new Exception("Hash mismatch!");
-			Directory.CreateDirectory(localDir);
-			File.WriteAllBytes(xmlPath, xmlBytes);
-			File.WriteAllBytes(hashPath, hashBytes);
-			relativeDir.Dump();
-		}
+	foreach (string updateDirUrl in extUpdateDirUrls) {
+		string relativeDir = UrlToRelativeDir(updateDirUrl);
+		string localDir = Path.Combine(PathQtXmlDir, relativeDir);
+		string xmlPath = Path.Combine(localDir, "Updates.xml");
+		string hashPath = Path.Combine(localDir, "Updates.xml.sha256");
+		if (File.Exists(xmlPath)) continue;
+		byte[] xmlBytes = FetchAsBytes(updateDirUrl + "Updates.xml");
+		byte[] hashBytes = FetchAsBytes(updateDirUrl + "Updates.xml.sha256");
+		byte[] actualHash = SHA256.HashData(xmlBytes);
+		byte[] expectedHash = Convert.FromHexString(Encoding.UTF8.GetString(hashBytes).SubstringBeforeFirst(" "));
+		if (!actualHash.SequenceEqual(expectedHash)) throw new Exception("Hash mismatch!");
+		Directory.CreateDirectory(localDir);
+		File.WriteAllBytes(xmlPath, xmlBytes);
+		File.WriteAllBytes(hashPath, hashBytes);
+		relativeDir.Dump();
 	}
 }
 
-void CheckForArchDirChanges(Version version) {
+void CheckForArchDirChanges(Version version, Version chromiumVersion) {
 	if (version.IsUnder(6, 11, 0)) throw new InvalidOperationException();
 	void Expect(string url, IEnumerable<string> dirs) {
 		UrlToRelativeDir(url).Dump();
@@ -262,6 +234,7 @@ void CheckForArchDirChanges(Version version) {
 	string baseUrl = "https://download.qt.io/online/qtsdkrepository/";
 	string versionNoDots = version.ToStringNoDots();
 	string folderVersion = $"qt{version.Major}_{versionNoDots}";
+	string chromiumVersionNoDots = chromiumVersion.ToStringNoDots();
 	Expect($"{baseUrl}windows_x86/desktop/{folderVersion}/", new[] { "msvc2022_arm64_cross_compiled", "msvc2022_64", "mingw", "llvm_mingw" }.Select(n => $"{folderVersion}_{n}"));
 	Expect($"{baseUrl}windows_arm64/desktop/{folderVersion}/", [folderVersion]);
 	Expect($"{baseUrl}linux_x64/desktop/{folderVersion}/", [folderVersion]);
@@ -269,19 +242,19 @@ void CheckForArchDirChanges(Version version) {
 	Expect($"{baseUrl}mac_x64/desktop/{folderVersion}/", [folderVersion]);
 	Expect($"{baseUrl}all_os/android/{folderVersion}/", new[] { "x86_64", "x86", "armv7", "arm64_v8a" }.Select(n => $"{folderVersion}_{n}"));
 	Expect($"{baseUrl}all_os/wasm/{folderVersion}/", new[] { "wasm_singlethread", "wasm_multithread" }.Select(n => $"{folderVersion}_{n}"));
-	Expect($"{baseUrl}mac_x64/ios/{folderVersion}/", [folderVersion]);
-	Expect($"{baseUrl}windows_x86/extensions/qtpdf/{versionNoDots}/", ["src_doc_examples", "msvc2022_arm64", "msvc2022_64", "mingw", "main", "llvm_mingw"]);
-	Expect($"{baseUrl}windows_x86/extensions/qtwebengine/{versionNoDots}/", ["src_doc_examples", "msvc2022_arm64", "msvc2022_64", "main"]);
-	Expect($"{baseUrl}windows_arm64/extensions/qtpdf/{versionNoDots}/", ["msvc2022_arm64", "main"]);
-	Expect($"{baseUrl}windows_arm64/extensions/qtwebengine/{versionNoDots}/", ["msvc2022_arm64", "main"]);
-	Expect($"{baseUrl}linux_x64/extensions/qtpdf/{versionNoDots}/", ["x86_64", "main"]);
-	Expect($"{baseUrl}linux_x64/extensions/qtwebengine/{versionNoDots}/", ["x86_64", "main"]);
-	Expect($"{baseUrl}linux_arm64/extensions/qtpdf/{versionNoDots}/", ["main", "arm64"]);
-	Expect($"{baseUrl}linux_arm64/extensions/qtwebengine/{versionNoDots}/", ["main", "arm64"]);
-	Expect($"{baseUrl}mac_x64/extensions/qtpdf/{versionNoDots}/", ["main", "ios", "clang_64"]);
-	Expect($"{baseUrl}mac_x64/extensions/qtwebengine/{versionNoDots}/", ["main", "clang_64"]);
-	Expect($"{baseUrl}all_os/extensions/qtpdf/{versionNoDots}/", ["src_doc_examples", .. new[] { "x86_64", "x86", "armv7", "arm64_v8a" }.Select(n => $"{folderVersion}_{n}"), "android"]);
-	Expect($"{baseUrl}all_os/extensions/qtwebengine/{versionNoDots}/", ["src_doc_examples"]);
+	Expect($"{baseUrl}mac_x64/ios/{folderVersion}/", new[] { "simulator_x86_64", "simulator_arm64", "device" }.Select(n => $"{folderVersion}_{n}"));
+	Expect($"{baseUrl}windows_x86/extensions/qtpdf/{versionNoDots}/{chromiumVersionNoDots}/", ["src_doc_examples", "msvc2022_arm64", "msvc2022_64", "mingw", "main", "llvm_mingw"]);
+	Expect($"{baseUrl}windows_x86/extensions/qtwebengine/{versionNoDots}/{chromiumVersionNoDots}/", ["src_doc_examples", "msvc2022_arm64", "msvc2022_64", "main"]);
+	Expect($"{baseUrl}windows_arm64/extensions/qtpdf/{versionNoDots}/{chromiumVersionNoDots}/", ["msvc2022_arm64", "main"]);
+	Expect($"{baseUrl}windows_arm64/extensions/qtwebengine/{versionNoDots}/{chromiumVersionNoDots}/", ["msvc2022_arm64", "main"]);
+	Expect($"{baseUrl}linux_x64/extensions/qtpdf/{versionNoDots}/{chromiumVersionNoDots}/", ["x86_64", "main"]);
+	Expect($"{baseUrl}linux_x64/extensions/qtwebengine/{versionNoDots}/{chromiumVersionNoDots}/", ["x86_64", "main"]);
+	Expect($"{baseUrl}linux_arm64/extensions/qtpdf/{versionNoDots}/{chromiumVersionNoDots}/", ["main", "arm64"]);
+	Expect($"{baseUrl}linux_arm64/extensions/qtwebengine/{versionNoDots}/{chromiumVersionNoDots}/", ["main", "arm64"]);
+	Expect($"{baseUrl}mac_x64/extensions/qtpdf/{versionNoDots}/{chromiumVersionNoDots}/", ["main", "ios_simulator_x86_64", "ios_simulator_arm64", "ios_device", "clang_64"]);
+	Expect($"{baseUrl}mac_x64/extensions/qtwebengine/{versionNoDots}/{chromiumVersionNoDots}/", ["main", "clang_64"]);
+	Expect($"{baseUrl}all_os/extensions/qtpdf/{versionNoDots}/{chromiumVersionNoDots}/", ["src_doc_examples", .. new[] { "x86_64", "x86", "armv7", "arm64_v8a" }.Select(n => $"{folderVersion}_{n}"), "android"]);
+	Expect($"{baseUrl}all_os/extensions/qtwebengine/{versionNoDots}/{chromiumVersionNoDots}/", ["src_doc_examples"]);
 }
 
 static class ExtensionMethods {
@@ -409,7 +382,10 @@ static Dictionary<string, QtArch[]> ArchesByPlatform = new() {
 		new("harmonyos_arm64_v8a", v => v.IsAtLeast(6, 12, 0))
 	],
 	["ios"] = [
-		new("ios", v => true)
+		new("ios", v => v.IsUnder(6, 12, 0)),
+		new("ios_device", v => v.IsAtLeast(6, 12, 0)),
+		new("ios_simulator_arm64", v => v.IsAtLeast(6, 12, 0)),
+		new("ios_simulator_x86_64", v => v.IsAtLeast(6, 12, 0))
 	]
 };
 
@@ -847,6 +823,9 @@ static Dictionary<string, QtModule[]> ModulesByPlatformAndArch = new() {
 	["android.android"] = ModulesByAlias["ModulesAndroid"],
 	["harmonyos.harmonyos_arm64_v8a"] = ModulesByAlias["ModulesHarmonyOs"],
 	["ios.ios"] = ModulesByAlias["ModulesIos"],
+	["ios.ios_device"] = ModulesByAlias["ModulesIos"],
+	["ios.ios_simulator_arm64"] = ModulesByAlias["ModulesIos"],
+	["ios.ios_simulator_x86_64"] = ModulesByAlias["ModulesIos"],
 };
 
 record QtExtension(string Name, Func<Version, bool> IsAvailable);
@@ -896,7 +875,29 @@ static Dictionary<string, QtExtension[]> ExtensionsByPlatformAndArch = new() {
 	],
 	["ios.ios"] = [
 		new("qtpdf", v => v.IsAtLeast(6, 8, 0))
+	],
+	["ios.ios_device"] = [
+		new("qtpdf", v => true)
+	],
+	["ios.ios_simulator_arm64"] = [
+		new("qtpdf", v => true)
+	],
+	["ios.ios_simulator_x86_64"] = [
+		new("qtpdf", v => true)
 	]
+};
+
+record QtExtensionVersion(Version Version, Func<Version, bool> IsAvailable);
+
+static Dictionary<string, QtExtensionVersion[]> ExtensionVersionsByName = new() {
+	["qtwebengine"] = [
+		new(null, v => v.IsUnder(6, 12, 0)),
+		new(new Version(6, 140, 0), v => v.IsAtLeast(6, 12, 0)),
+	],
+	["qtpdf"] = [
+		new(null, v => v.IsUnder(6, 12, 0)),
+		new(new Version(6, 140, 0), v => v.IsAtLeast(6, 12, 0)),
+	],
 };
 
 static string[] Hosts = [
@@ -959,7 +960,11 @@ static IEnumerable<string> GetRelevantExtensions(string host, string target, Ver
 	QtExtension[] extensions = ExtensionsByPlatformAndArch.GetValueOrDefault($"{MakePlatform(host, target)}.{arch}") ?? [];
 	foreach (QtExtension extension in extensions) {
 		if (!extension.IsAvailable(version)) continue;
-		yield return extension.Name;
+		QtExtensionVersion[] extensionVersions = ExtensionVersionsByName[extension.Name];
+		foreach (QtExtensionVersion extensionVersion in extensionVersions) {
+			if (!extensionVersion.IsAvailable(version)) continue;
+			yield return extension.Name + (extensionVersion.Version is null ? "" : $"@{extensionVersion.Version}");
+		}
 	}
 }
 
@@ -1001,6 +1006,7 @@ static string GetUpdateDirectoryUrl(string host, string target, Version version,
 		string variant =
 			host == "windows" && target == "desktop" && version.IsAtLeast(6, 11, 0) ? arch.StripPrefix("win64_") :
 			target == "android" && version.IsAtLeast(6, 0, 0) ? arch.StripPrefix("android_") :
+			target == "ios" && version.IsAtLeast(6, 12, 0) ? arch.StripPrefix("ios_") :
 			target == "harmonyos" ? arch.StripPrefix("harmonyos_") :
 			target == "wasm" ? (version.IsAtLeast(6, 5, 0) ? arch : "wasm") :
 			"";
@@ -1008,6 +1014,9 @@ static string GetUpdateDirectoryUrl(string host, string target, Version version,
 		componentDir = version.IsAtLeast(6, 8, 0) ? $"{dirForVersion}/{dirForVersionAndVariant}" : dirForVersionAndVariant;
 	}
 	else {
+		int versionDelimiter = extension.IndexOf('@');
+		string extensionName = versionDelimiter == -1 ? extension : extension[..versionDelimiter];
+		Version? extensionVersion = versionDelimiter == -1 ? null : Version.Parse(extension[(versionDelimiter + 1)..]);
 		string dirForArch =
 			host.StartsWith("windows") && target == "desktop" ? arch.StripPrefix("win64_").StripSuffix("_cross_compiled", optional: true) :
 			host == "linux" && target == "desktop" && arch == "linux_gcc_64" ? "x86_64" :
@@ -1018,7 +1027,10 @@ static string GetUpdateDirectoryUrl(string host, string target, Version version,
 			target == "harmonyos" ? arch : // TBD (no extensions yet)
 			target == "ios" ? arch :
 			throw new NotSupportedException();
-		componentDir = $"{extension}/{version.ToStringNoDots()}/{dirForArch}";
+		string versionComponent = extensionVersion is not null ?
+			$"{version.ToStringNoDots()}/{extensionVersion.ToStringNoDots()}" :
+			version.ToStringNoDots();
+		componentDir = $"{extensionName}/{versionComponent}/{dirForArch}";
 	}
 	return $"https://download.qt.io/online/qtsdkrepository/{actualHost}/{actualTarget}/{componentDir}/";
 }

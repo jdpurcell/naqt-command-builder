@@ -352,7 +352,10 @@
       QtArch("harmonyos_arm64_v8a", v => gte(v, V(6,12,0))),
     ],
     "ios": [
-      QtArch("ios", _v => true),
+      QtArch("ios", v => lt(v, V(6,12,0))),
+      QtArch("ios_device", v => gte(v, V(6,12,0))),
+      QtArch("ios_simulator_arm64", v => gte(v, V(6,12,0))),
+      QtArch("ios_simulator_x86_64", v => gte(v, V(6,12,0))),
     ],
   };
 
@@ -788,6 +791,9 @@
     "android.android": ModulesByAlias["ModulesAndroid"],
     "harmonyos.harmonyos_arm64_v8a": ModulesByAlias["ModulesHarmonyOs"],
     "ios.ios": ModulesByAlias["ModulesIos"],
+    "ios.ios_device": ModulesByAlias["ModulesIos"],
+    "ios.ios_simulator_arm64": ModulesByAlias["ModulesIos"],
+    "ios.ios_simulator_x86_64": ModulesByAlias["ModulesIos"],
   };
 
   const QtExt = (Name, IsAvailable) => ({ Name, IsAvailable });
@@ -837,6 +843,27 @@
     "ios.ios": [
       QtExt("qtpdf", v => gte(v, V(6,8,0))),
     ],
+    "ios.ios_device": [
+      QtExt("qtpdf", _v => true),
+    ],
+    "ios.ios_simulator_arm64": [
+      QtExt("qtpdf", _v => true),
+    ],
+    "ios.ios_simulator_x86_64": [
+      QtExt("qtpdf", _v => true),
+    ],
+  };
+
+  const QtExtVersion = (Version, IsAvailable) => ({ Version, IsAvailable });
+  const ExtensionVersionsByName = {
+    "qtwebengine": [
+      QtExtVersion(null, v => lt(v, V(6,12,0))),
+      QtExtVersion(V(6,140,0), v => gte(v, V(6,12,0))),
+    ],
+    "qtpdf": [
+      QtExtVersion(null, v => lt(v, V(6,12,0))),
+      QtExtVersion(V(6,140,0), v => gte(v, V(6,12,0))),
+    ],
   };
 
   // -----------------------------
@@ -878,7 +905,15 @@
 
   function getRelevantExtensions(host, target, version, arch) {
     const extensions = ExtensionsByPlatformAndArch[`${makePlatform(host, target)}.${arch}`] || [];
-    return extensions.filter(e => e.IsAvailable(version)).map(e => e.Name);
+    const out = [];
+    for (const extension of extensions) {
+      if (!extension.IsAvailable(version)) continue;
+      for (const extensionVersion of ExtensionVersionsByName[extension.Name]) {
+        if (!extensionVersion.IsAvailable(version)) continue;
+        out.push(extension.Name + (extensionVersion.Version === null ? "" : `@${vToString(extensionVersion.Version)}`));
+      }
+    }
+    return out;
   }
 
   function makePlatform(host, target) {
@@ -966,6 +1001,7 @@
     const variant =
       host === "windows" && target === "desktop" && gte(version, V(6,11,0)) && arch.startsWith("win64_") ? arch.substring("win64_".length) :
       target === "android" && gte(version, V(6,0,0)) && arch.startsWith("android_") ? arch.substring("android_".length) :
+      target === "ios" && gte(version, V(6,12,0)) && arch.startsWith("ios_") ? arch.substring("ios_".length) :
       target === "harmonyos" && arch.startsWith("harmonyos_") ? arch.substring("harmonyos_".length) :
       target === "wasm" ? (gte(version, V(6,5,0)) ? arch : "wasm") :
       "";
