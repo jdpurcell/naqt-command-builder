@@ -35,4 +35,5 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           QT_UPDATE_FOLDER_WATCH: ${{ vars.QT_UPDATE_FOLDER_WATCH }}
           QT_RELEASE_NOTES_WATCH: ${{ vars.QT_RELEASE_NOTES_WATCH }}
+          QT_EXTENSION_FOLDER_WATCH: ${{ vars.QT_EXTENSION_FOLDER_WATCH }}
         run: node .github/scripts/qt-release-watch.mjs

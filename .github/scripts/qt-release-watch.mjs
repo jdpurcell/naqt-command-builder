@@ -1,5 +1,6 @@
 const folderWatchVariable = 'QT_UPDATE_FOLDER_WATCH';
 const releaseNotesWatchVariable = 'QT_RELEASE_NOTES_WATCH';
+const extensionWatchVariable = 'QT_EXTENSION_FOLDER_WATCH';
 
 const [owner, repo] = (process.env.GITHUB_REPOSITORY || '').split('/');
 const issueToken = process.env.GITHUB_TOKEN;
@@ -201,6 +202,88 @@ async function notifyForMatches({
   return matchedVersions;
 }
 
+function compareVersions(left, right) {
+  const a = left.split('.').map(Number);
+  const b = right.split('.').map(Number);
+  return a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
+}
+
+function parseIndexDirectories(html) {
+  const directories = [];
+  const textContent = (value) => value.replace(/<[^>]*>/g, '').replace(/&nbsp;|&#160;/gi, ' ').trim();
+  for (const row of html.matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/gi)) {
+    const cells = [...row[1].matchAll(/<td\b[^>]*>([\s\S]*?)<\/td>/gi)];
+    if (cells.length < 3 || textContent(cells.at(-1)[1]) !== '') {
+      continue;
+    }
+    const name = textContent(cells[1][1]);
+    if (name.toLowerCase() !== 'parent directory') {
+      directories.push(name.replace(/\/$/, ''));
+    }
+  }
+  return directories;
+}
+
+async function notifyForExtensionMatches() {
+  const entries = parseVersionList(process.env[extensionWatchVariable]);
+  // Validate every entry before making requests or changing the variable.
+  const watches = entries.map((entry) => {
+    const match = entry.match(/^(\d+\.\d+\.\d+):([a-zA-Z0-9_-]+)>(\d+\.\d+\.\d+)$/);
+    if (!match) {
+      throw new Error(`Invalid ${extensionWatchVariable} entry: ${entry}. Expected QtVersion:extension>extensionVersion.`);
+    }
+    return { qtVersion: match[1], extension: match[2], minimumVersion: match[3] };
+  });
+
+  if (watches.length === 0) {
+    console.log(`${extensionWatchVariable} is empty; skipping extension checks.`);
+    return [];
+  }
+
+  const matches = [];
+  for (const [index, watch] of watches.entries()) {
+    const { qtVersion, extension, minimumVersion } = watch;
+    const majorVersion = qtVersion.split('.')[0];
+    const url = `https://download.qt.io/online/qtsdkrepository/linux_x64/extensions/${extension}/${qtVersion.replaceAll('.', '')}/`;
+    const response = await fetch(url, {
+      headers: { 'User-Agent': 'qt-release-watch-workflow' },
+      redirect: 'follow',
+    });
+    if (response.status === 404) {
+      console.log(`No extension folder for ${extension} / Qt ${qtVersion}.`);
+      continue;
+    }
+    if (!response.ok) {
+      throw new Error(`Extension listing ${url} failed with ${response.status}.`);
+    }
+
+    const directoryPattern = new RegExp(`^${majorVersion}(\\d{3})(\\d)$`);
+    const versions = [...new Set(parseIndexDirectories(await response.text())
+      .map((name) => name.match(directoryPattern))
+      .filter(Boolean)
+      .map((match) => `${majorVersion}.${Number(match[1])}.${Number(match[2])}`))]
+      .filter((version) => compareVersions(version, minimumVersion) > 0)
+      .sort(compareVersions);
+
+    for (const version of versions) {
+      const sourceUrl = `${url}${majorVersion}${version.split('.')[1].padStart(3, '0')}${version.split('.')[2]}/`;
+      const issue = await createIssue(
+        `Detected new Qt extension ${extension} ${version} for Qt ${qtVersion}`,
+        [`Source URL: ${sourceUrl}`, `Detected at: ${new Date().toISOString()}`].join('\n'),
+      );
+      console.log(`Created issue #${issue.number} for ${extension} ${version} / Qt ${qtVersion}.`);
+      matches.push({ qtVersion, extension, version });
+    }
+
+    if (versions.length > 0) {
+      entries[index] = `${qtVersion}:${extension}>${versions.at(-1)}`;
+      await updateRepositoryVariable(extensionWatchVariable, entries.join(';'));
+      console.log(`Updated ${extensionWatchVariable}: ${entries[index]}.`);
+    }
+  }
+  return matches;
+}
+
 async function main() {
   const folderVersions = parseVersionList(process.env[folderWatchVariable]);
   const releaseNotesVersions = parseVersionList(process.env[releaseNotesWatchVariable]);
@@ -213,7 +296,7 @@ async function main() {
     console.log(`${releaseNotesWatchVariable} is empty or not set; skipping release notes watch.`);
   }
 
-  const [folderMatches, releaseNotesMatches] = await Promise.all([
+  const [folderMatches, releaseNotesMatches, extensionMatches] = await Promise.all([
     notifyForMatches({
       watchType: 'update folder',
       variableName: folderWatchVariable,
@@ -226,10 +309,11 @@ async function main() {
       versions: releaseNotesVersions,
       checkRelease: checkReleaseNotes,
     }),
+    notifyForExtensionMatches(),
   ]);
 
   console.log(
-    `Finished. Folder matches: ${folderMatches.length}. Release notes matches: ${releaseNotesMatches.length}.`,
+    `Finished. Folder matches: ${folderMatches.length}. Release notes matches: ${releaseNotesMatches.length}. Extension matches: ${extensionMatches.length}.`,
   );
 }
 
