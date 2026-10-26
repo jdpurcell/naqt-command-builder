@@ -330,7 +330,7 @@ static QtRelease[] Releases = [
 	new(6, 8, 3),
 	new(6, 9, 3),
 	new(6, 10, 3),
-	new(6, 11, 2),
+	new(6, 11, 3),
 	new(6, 12, 0)
 ];
 
