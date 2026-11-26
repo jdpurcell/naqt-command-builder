@@ -17,7 +17,7 @@ IEnumerable<(string Host, string Target, Version Version, string Arch)> AllItems
 	select (host, target, version, arch);
 
 void Main() {
-	//CheckForArchDirChanges(new Version(6, 12, 0), new Version(6, 140, 0));
+	//CheckForArchDirChanges(new Version(6, 12, 1), new Version(6, 140, 0));
 	//FetchUpdateXmls();
 	//GenerateModuleLookups(false);
 	//TestGeneratedModules();
@@ -96,9 +96,14 @@ void GenerateModuleLookups(bool makeJavaScript) {
 		Dictionary<string, List<VersionRange>> moduleStats = [];
 		foreach (var versionGroup in mainGroup.GroupBy(g => g.Version).OrderBy(g => g.Key)) {
 			string[] GetModules((string Host, string Target, Version Version, string Arch) item) {
-				string relativeDir = UrlToRelativeDir(GetUpdateDirectoryUrl(item.Host, item.Target, item.Version, item.Arch));
-				XDocument updateDoc = XDocument.Parse(File.ReadAllText(Path.Combine(PathQtXmlDir, relativeDir, "Updates.xml")));
-				return [..ParseModulesFromUpdate(updateDoc, item.Arch).Where(n => !IsExcludedModule(n)).Order()];
+				List<string> modules = [];
+				string[] splitModules = [null, ..GetSplitModules(item.Host, item.Target, item.Version, item.Arch)];
+				foreach (string splitModule in splitModules) {
+					string relativeDir = UrlToRelativeDir(GetUpdateDirectoryUrl(item.Host, item.Target, item.Version, item.Arch, splitModule: splitModule));
+					XDocument updateDoc = XDocument.Parse(File.ReadAllText(Path.Combine(PathQtXmlDir, relativeDir, "Updates.xml")));
+					modules.AddRange(ParseModulesFromUpdate(updateDoc, item.Arch).Where(n => !IsExcludedModule(n)));
+				}
+				return [..modules.Order()];
 			}
 			string[] modules = GetModules(versionGroup.First());
 			if (versionGroup.Skip(1).Any(n => !GetModules(n).SequenceEqual(modules))) {
@@ -164,10 +169,15 @@ void TestGeneratedModules() {
 	int passCount = 0;
 	int failCount = 0;
 	foreach (var (host, target, version, arch) in AllItems) {
-		string relativeDir = UrlToRelativeDir(GetUpdateDirectoryUrl(host, target, version, arch));
-		XDocument updateDoc = XDocument.Parse(File.ReadAllText(Path.Combine(PathQtXmlDir, relativeDir, "Updates.xml")));
-		string[] expectedModules = ParseModulesFromUpdate(updateDoc, arch).Where(n => !IsExcludedModule(n)).Order().ToArray();
-		string[] generatedModules = GetRelevantModules(host, target, version, arch).Order().ToArray();
+		string[] splitModules = [null, ..GetSplitModules(host, target, version, arch)];
+		List<string> expectedModules = [];
+		foreach (string splitModule in splitModules) {
+			string relativeDir = UrlToRelativeDir(GetUpdateDirectoryUrl(host, target, version, arch, splitModule: splitModule));
+			XDocument updateDoc = XDocument.Parse(File.ReadAllText(Path.Combine(PathQtXmlDir, relativeDir, "Updates.xml")));
+			expectedModules.AddRange(ParseModulesFromUpdate(updateDoc, arch).Where(n => !IsExcludedModule(n)));
+		}
+		expectedModules.Sort();
+		List<string> generatedModules = GetRelevantModules(host, target, version, arch).Order().ToList();
 		if (expectedModules.SequenceEqual(generatedModules))
 			passCount++;
 		else
@@ -183,24 +193,27 @@ bool IsExcludedModule(string name) =>
 void FetchUpdateXmls() {
 	HashSet<string> extUpdateDirUrls = [];
 	foreach (var (host, target, version, arch) in AllItems) {
-		foreach (string ext in GetRelevantExtensions(host, target, version, arch)) {
-			extUpdateDirUrls.Add(GetUpdateDirectoryUrl(host, target, version, arch, ext));
+		//foreach (string ext in GetRelevantExtensions(host, target, version, arch)) {
+		//	extUpdateDirUrls.Add(GetUpdateDirectoryUrl(host, target, version, arch, ext));
+		//}
+		string[] splitModules = [null, ..GetSplitModules(host, target, version, arch)];
+		foreach (string splitModule in splitModules) {
+			string updateDirUrl = GetUpdateDirectoryUrl(host, target, version, arch, splitModule: splitModule);
+			string relativeDir = UrlToRelativeDir(updateDirUrl);
+			string localDir = Path.Combine(PathQtXmlDir, relativeDir);
+			string xmlPath = Path.Combine(localDir, "Updates.xml");
+			string hashPath = Path.Combine(localDir, "Updates.xml.sha256");
+			if (File.Exists(xmlPath)) continue;
+			byte[] xmlBytes = FetchAsBytes(updateDirUrl + "Updates.xml");
+			byte[] hashBytes = FetchAsBytes(updateDirUrl + "Updates.xml.sha256");
+			byte[] actualHash = SHA256.HashData(xmlBytes);
+			byte[] expectedHash = Convert.FromHexString(Encoding.UTF8.GetString(hashBytes).SubstringBeforeFirst(" "));
+			if (!actualHash.SequenceEqual(expectedHash)) throw new Exception("Hash mismatch!");
+			Directory.CreateDirectory(localDir);
+			File.WriteAllBytes(xmlPath, xmlBytes);
+			File.WriteAllBytes(hashPath, hashBytes);
+			relativeDir.Dump();
 		}
-		string updateDirUrl = GetUpdateDirectoryUrl(host, target, version, arch);
-		string relativeDir = UrlToRelativeDir(updateDirUrl);
-		string localDir = Path.Combine(PathQtXmlDir, relativeDir);
-		string xmlPath = Path.Combine(localDir, "Updates.xml");
-		string hashPath = Path.Combine(localDir, "Updates.xml.sha256");
-		if (File.Exists(xmlPath)) continue;
-		byte[] xmlBytes = FetchAsBytes(updateDirUrl + "Updates.xml");
-		byte[] hashBytes = FetchAsBytes(updateDirUrl + "Updates.xml.sha256");
-		byte[] actualHash = SHA256.HashData(xmlBytes);
-		byte[] expectedHash = Convert.FromHexString(Encoding.UTF8.GetString(hashBytes).SubstringBeforeFirst(" "));
-		if (!actualHash.SequenceEqual(expectedHash)) throw new Exception("Hash mismatch!");
-		Directory.CreateDirectory(localDir);
-		File.WriteAllBytes(xmlPath, xmlBytes);
-		File.WriteAllBytes(hashPath, hashBytes);
-		relativeDir.Dump();
 	}
 	foreach (string updateDirUrl in extUpdateDirUrls) {
 		string relativeDir = UrlToRelativeDir(updateDirUrl);
@@ -222,11 +235,20 @@ void FetchUpdateXmls() {
 
 void CheckForArchDirChanges(Version version, Version chromiumVersion) {
 	if (version.IsUnder(6, 11, 0)) throw new InvalidOperationException();
-	void Expect(string url, IEnumerable<string> dirs) {
+	void Expect(string url, IEnumerable<string> dirs, IEnumerable<string> additionalDirSuffixes = null) {
 		UrlToRelativeDir(url).Dump();
-		string[] actual = ParseIndexEntries(FetchAsString(url)).Where(n => n.IsDir).Select(n => n.Name).ToArray();
-		if (!actual.SequenceEqual(dirs)) {
-			dirs.Dump();
+		IEnumerable<string> GetDirsWithSuffixes() {
+			foreach (string dir in dirs) {
+				yield return dir;
+				foreach (string suffix in additionalDirSuffixes ?? Enumerable.Empty<string>()) {
+					yield return dir + suffix;
+				}
+			}
+		};
+		string[] expected = GetDirsWithSuffixes().Order().ToArray();
+		string[] actual = ParseIndexEntries(FetchAsString(url)).Where(n => n.IsDir).Select(n => n.Name).Order().ToArray();
+		if (!actual.SequenceEqual(expected)) {
+			expected.Dump();
 			actual.Dump();
 			throw new Exception("Directory validation failure!");
 		}
@@ -235,14 +257,14 @@ void CheckForArchDirChanges(Version version, Version chromiumVersion) {
 	string versionNoDots = version.ToStringNoDots();
 	string folderVersion = $"qt{version.Major}_{versionNoDots}";
 	string chromiumVersionNoDots = chromiumVersion.ToStringNoDots();
-	Expect($"{baseUrl}windows_x86/desktop/{folderVersion}/", new[] { "msvc2022_arm64_cross_compiled", "msvc2022_64", "mingw", "llvm_mingw" }.Select(n => $"{folderVersion}_{n}"));
-	Expect($"{baseUrl}windows_arm64/desktop/{folderVersion}/", [folderVersion]);
-	Expect($"{baseUrl}linux_x64/desktop/{folderVersion}/", [folderVersion]);
-	Expect($"{baseUrl}linux_arm64/desktop/{folderVersion}/", [folderVersion]);
-	Expect($"{baseUrl}mac_x64/desktop/{folderVersion}/", [folderVersion]);
-	Expect($"{baseUrl}all_os/android/{folderVersion}/", new[] { "x86_64", "x86", "armv7", "arm64_v8a" }.Select(n => $"{folderVersion}_{n}"));
+	Expect($"{baseUrl}windows_x86/desktop/{folderVersion}/", new[] { "msvc2022_arm64_cross_compiled", "msvc2022_64", "mingw", "llvm_mingw" }.Select(n => $"{folderVersion}_{n}"), ["_qt3d", "_qtlocation"]);
+	Expect($"{baseUrl}windows_arm64/desktop/{folderVersion}/", [folderVersion], ["_qt3d", "_qtlocation"]);
+	Expect($"{baseUrl}linux_x64/desktop/{folderVersion}/", [folderVersion], ["_qt3d", "_qtlocation"]);
+	Expect($"{baseUrl}linux_arm64/desktop/{folderVersion}/", [folderVersion], ["_qt3d", "_qtlocation"]);
+	Expect($"{baseUrl}mac_x64/desktop/{folderVersion}/", [folderVersion], ["_qt3d", "_qtlocation"]);
+	Expect($"{baseUrl}all_os/android/{folderVersion}/", new[] { "x86_64", "x86", "armv7", "arm64_v8a" }.Select(n => $"{folderVersion}_{n}"), ["_qt3d", "_qtlocation"]);
 	Expect($"{baseUrl}all_os/wasm/{folderVersion}/", new[] { "wasm_singlethread", "wasm_multithread" }.Select(n => $"{folderVersion}_{n}"));
-	Expect($"{baseUrl}mac_x64/ios/{folderVersion}/", new[] { "simulator_x86_64", "simulator_arm64", "device" }.Select(n => $"{folderVersion}_{n}"));
+	Expect($"{baseUrl}mac_x64/ios/{folderVersion}/", new[] { "simulator_x86_64", "simulator_arm64", "device" }.Select(n => $"{folderVersion}_{n}"), ["_qt3d", "_qtlocation"]);
 	Expect($"{baseUrl}windows_x86/extensions/qtpdf/{versionNoDots}/{chromiumVersionNoDots}/", ["src_doc_examples", "msvc2022_arm64", "msvc2022_64", "mingw", "main", "llvm_mingw"]);
 	Expect($"{baseUrl}windows_x86/extensions/qtwebengine/{versionNoDots}/{chromiumVersionNoDots}/", ["src_doc_examples", "msvc2022_arm64", "msvc2022_64", "main"]);
 	Expect($"{baseUrl}windows_arm64/extensions/qtpdf/{versionNoDots}/{chromiumVersionNoDots}/", ["msvc2022_arm64", "main"]);
@@ -331,7 +353,7 @@ static QtRelease[] Releases = [
 	new(6, 9, 3),
 	new(6, 10, 3),
 	new(6, 11, 3),
-	new(6, 12, 0)
+	new(6, 12, 1)
 ];
 
 record QtArch(string Name, Func<Version, bool> IsAvailable);
@@ -968,6 +990,13 @@ static IEnumerable<string> GetRelevantExtensions(string host, string target, Ver
 	}
 }
 
+static IEnumerable<string> GetSplitModules(string host, string target, Version version, string arch) {
+	if (version.IsAtLeast(6, 12, 1) && target != "wasm") {
+		return ["qt3d", "qtlocation"];
+	}
+	return [];
+}
+
 static string MakePlatform(string host, string target) {
 	return target == "desktop" ? $"{host}.{target}" : target;
 }
@@ -990,7 +1019,7 @@ static string GetInstallCommand(string host, string target, Version version, str
 	return command;
 }
 
-static string GetUpdateDirectoryUrl(string host, string target, Version version, string arch, string extension = null) {
+static string GetUpdateDirectoryUrl(string host, string target, Version version, string arch, string extension = null, string splitModule = null) {
 	string actualHost =
 		UsesAllOsHost(target, version) ? "all_os" :
 		host == "windows" ? $"{host}_x86" :
@@ -1011,6 +1040,9 @@ static string GetUpdateDirectoryUrl(string host, string target, Version version,
 			target == "wasm" ? (version.IsAtLeast(6, 5, 0) ? arch : "wasm") :
 			"";
 		string dirForVersionAndVariant = variant.Length != 0 ? $"{dirForVersion}_{variant}" : dirForVersion;
+		if (splitModule != null) {
+			dirForVersionAndVariant += $"_{splitModule}";
+		}
 		componentDir = version.IsAtLeast(6, 8, 0) ? $"{dirForVersion}/{dirForVersionAndVariant}" : dirForVersionAndVariant;
 	}
 	else {
